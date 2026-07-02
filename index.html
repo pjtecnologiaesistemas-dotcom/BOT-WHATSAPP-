@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PJ Tecnologia — Lançamentos</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<style>
+  :root{
+    --bg:#0a0e14; --bg2:#101720; --card:#141c27; --border:#1f2b38;
+    --cyan:#22d3ee; --amber:#f5a524; --text:#e6edf3; --muted:#7c8b9c;
+    --danger:#f0556b; --ok:#3ddc97;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%, #0f2733 0%, var(--bg) 55%);
+    color:var(--text); min-height:100vh; padding:16px;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:18px; flex-wrap:wrap; gap:10px;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .hex{
+    width:34px; height:34px; position:relative;
+    background:conic-gradient(from 90deg, var(--cyan), var(--amber), var(--cyan));
+    clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);
+  }
+  .brand h1{font-size:16px; font-weight:700; letter-spacing:.3px;}
+  .brand span{display:block; font-size:11px; color:var(--muted); font-weight:400;}
+  #syncStatus{
+    display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+    background:rgba(255,255,255,.03); border:1px solid var(--border); padding:6px 12px; border-radius:20px;
+    backdrop-filter:blur(6px);
+  }
+  #syncDot{width:8px; height:8px; border-radius:50%; background:var(--muted); transition:.3s;}
+  #syncDot.on{background:var(--ok); box-shadow:0 0 8px var(--ok);}
+  #syncDot.off{background:var(--danger); box-shadow:0 0 8px var(--danger);}
+
+  .toolbar{
+    display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;
+  }
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;}
+  .field input, .field select{
+    background:var(--card); border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:8px; font-size:13px; outline:none; min-width:130px;
+  }
+  .field input:focus, .field select:focus{border-color:var(--cyan);}
+  .btn{
+    padding:9px 16px; border-radius:8px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); font-size:13px; font-weight:600; cursor:pointer;
+    transition:.15s;
+  }
+  .btn:hover{border-color:var(--cyan); color:var(--cyan);}
+  .btn.primary{background:linear-gradient(135deg,var(--cyan),#0891b2); color:#00161b; border:none;}
+  .btn.primary:hover{filter:brightness(1.1); color:#00161b;}
+  .btn.ghost{background:transparent;}
+
+  .summary{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;}
+  .kpi{
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:12px 16px; min-width:140px;
+  }
+  .kpi .n{font-size:20px; font-weight:700; color:var(--cyan);}
+  .kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-top:2px;}
+
+  .table-wrap{
+    background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:auto;
+  }
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{
+    text-align:left; padding:12px 14px; color:var(--muted); font-weight:600;
+    text-transform:uppercase; font-size:10.5px; letter-spacing:.5px;
+    border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card);
+  }
+  td{padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.04); white-space:nowrap;}
+  tr:hover td{background:rgba(34,211,238,.04);}
+  .motivo-tag{
+    padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600;
+    background:rgba(245,165,36,.12); color:var(--amber); border:1px solid rgba(245,165,36,.25);
+  }
+  .valor{color:var(--ok); font-weight:600;}
+  .empty{padding:40px; text-align:center; color:var(--muted); font-size:13px;}
+  .del{background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px;}
+  .del:hover{color:var(--danger);}
+
+  /* Modal de lançamento manual */
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:16px; backdrop-filter:blur(3px);
+  }
+  .modal-bg.open{display:flex;}
+  .modal{
+    background:var(--bg2); border:1px solid var(--border); border-radius:14px;
+    padding:22px; width:100%; max-width:420px;
+  }
+  .modal h2{font-size:15px; margin-bottom:16px;}
+  .modal .field{width:100%; margin-bottom:10px;}
+  .modal .field input{width:100%;}
+  .modal .row{display:flex; gap:8px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:14px;}
+
+  @media (max-width:640px){
+    .toolbar{flex-direction:column; align-items:stretch;}
+    .field input, .field select{min-width:0; width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="hex"></div>
+    <div>
+      <h1>Lançamentos — Grupo M.S<span>PJ Tecnologia e Sistemas</span></h1>
+    </div>
+  </div>
+  <div id="syncStatus"><span id="syncDot"></span><span id="syncText">Conectando...</span></div>
+</header>
+
+<div class="summary">
+  <div class="kpi"><div class="n" id="kpiTotal">0</div><div class="l">Lançamentos</div></div>
+  <div class="kpi"><div class="n" id="kpiValor">R$ 0,00</div><div class="l">Total no período</div></div>
+  <div class="kpi"><div class="n" id="kpiColab">0</div><div class="l">Colaboradores únicos</div></div>
+</div>
+
+<div class="toolbar">
+  <div class="field">
+    <label>Buscar</label>
+    <input type="text" id="fBusca" placeholder="Nome, posto, contrato...">
+  </div>
+  <div class="field">
+    <label>Data início</label>
+    <input type="date" id="fDataIni">
+  </div>
+  <div class="field">
+    <label>Data fim</label>
+    <input type="date" id="fDataFim">
+  </div>
+  <div class="field">
+    <label>Motivo</label>
+    <select id="fMotivo"><option value="">Todos</option></select>
+  </div>
+  <button class="btn" id="btnLimpar">Limpar filtros</button>
+  <button class="btn" id="btnExport">Exportar CSV</button>
+  <button class="btn primary" id="btnNovo">+ Novo lançamento</button>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
+        <th>Motivo</th><th>Horário</th><th>Valor</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="7" class="empty">Carregando lançamentos...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2>Novo lançamento manual</h2>
+    <div class="field"><label>Data</label><input type="date" id="mData"></div>
+    <div class="field"><label>Colaborador (FT)</label><input type="text" id="mColab" placeholder="Nome completo"></div>
+    <div class="field"><label>Posto / Contrato</label><input type="text" id="mContrato" placeholder="Ex: Pantanal"></div>
+    <div class="field"><label>Motivo</label><input type="text" id="mMotivo" placeholder="Ex: Extra, Falta, Cobertura"></div>
+    <div class="row">
+      <div class="field" style="flex:1"><label>Horário</label><input type="text" id="mHorario" placeholder="18:00 as 06:00"></div>
+      <div class="field" style="flex:1"><label>Valor R$</label><input type="text" id="mValor" placeholder="160,00"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="mCancelar">Cancelar</button>
+      <button class="btn primary" id="mSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======================================================
+// CONFIGURAÇÃO FIREBASE — troque pelos dados do seu projeto
+// (pode reaproveitar o mesmo projeto do Controle de Acesso
+// ou da FT, criando só a coleção "lancamentos")
+// ======================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCipzGGPY1U-Td8sJ1mAnd9VoIXQne4mrE",
+  authDomain: "bot-whatsapp-ee8ce.firebaseapp.com",
+  projectId: "bot-whatsapp-ee8ce",
+  storageBucket: "bot-whatsapp-ee8ce.firebasestorage.app",
+  messagingSenderId: "406562279464",
+  appId: "1:406562279464:web:3f427e5a722932fd8f251d"
+};
+
+const COLLECTION = "lancamentos"; // mesmo nome que o bot vai usar para gravar
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+const dot = document.getElementById('syncDot');
+const syncText = document.getElementById('syncText');
+let allDocs = [];
+
+auth.signInAnonymously().catch(err => {
+  syncText.textContent = 'Erro de autenticação';
+  dot.className = 'off';
+  console.error(err);
+});
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    syncText.textContent = 'Sincronizado';
+    dot.className = 'on';
+    escutarLancamentos();
+  }
+});
+
+function escutarLancamentos(){
+  db.collection(COLLECTION).orderBy('criadoEm', 'desc').onSnapshot(
+    snap => {
+      allDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      popularFiltroMotivo();
+      renderizar();
+      dot.className = 'on';
+      syncText.textContent = 'Sincronizado';
+    },
+    err => {
+      console.error(err);
+      dot.className = 'off';
+      syncText.textContent = 'Sem conexão';
+    }
+  );
+}
+
+function popularFiltroMotivo(){
+  const sel = document.getElementById('fMotivo');
+  const atuais = new Set(Array.from(sel.options).map(o => o.value));
+  const motivos = [...new Set(allDocs.map(d => d.motivo).filter(Boolean))];
+  motivos.forEach(m => {
+    if(!atuais.has(m)){
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      sel.appendChild(opt);
+    }
+  });
+}
+
+function parseValor(v){
+  if(!v) return 0;
+  const n = String(v).replace(/[^\d,.-]/g,'').replace(',', '.');
+  return parseFloat(n) || 0;
+}
+
+function filtrar(){
+  const busca = document.getElementById('fBusca').value.toLowerCase();
+  const dIni = document.getElementById('fDataIni').value;
+  const dFim = document.getElementById('fDataFim').value;
+  const motivo = document.getElementById('fMotivo').value;
+
+  return allDocs.filter(d => {
+    if(busca){
+      const alvo = `${d.colaborador||''} ${d.contrato||''} ${d.motivo||''}`.toLowerCase();
+      if(!alvo.includes(busca)) return false;
+    }
+    if(dIni && d.dataISO && d.dataISO < dIni) return false;
+    if(dFim && d.dataISO && d.dataISO > dFim) return false;
+    if(motivo && d.motivo !== motivo) return false;
+    return true;
+  });
+}
+
+function renderizar(){
+  const dados = filtrar();
+  const tbody = document.getElementById('tbody');
+
+  if(dados.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhum lançamento encontrado. Ajuste os filtros ou aguarde novos lançamentos do grupo.</td></tr>';
+  } else {
+    tbody.innerHTML = dados.map(d => `
+      <tr>
+        <td>${d.data || '—'}</td>
+        <td>${d.colaborador || '—'}</td>
+        <td>${d.contrato || '—'}</td>
+        <td><span class="motivo-tag">${d.motivo || '—'}</span></td>
+        <td>${d.horario || '—'}</td>
+        <td class="valor">${d.valor ? 'R$ ' + d.valor : '—'}</td>
+        <td><button class="del" onclick="excluir('${d.id}')" title="Excluir">✕</button></td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('kpiTotal').textContent = dados.length;
+  document.getElementById('kpiValor').textContent =
+    'R$ ' + dados.reduce((s,d) => s + parseValor(d.valor), 0).toFixed(2).replace('.', ',');
+  document.getElementById('kpiColab').textContent =
+    new Set(dados.map(d => d.colaborador).filter(Boolean)).size;
+}
+
+function excluir(id){
+  if(confirm('Excluir este lançamento?')){
+    db.collection(COLLECTION).doc(id).delete();
+  }
+}
+
+['fBusca','fDataIni','fDataFim','fMotivo'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderizar);
+  document.getElementById(id).addEventListener('change', renderizar);
+});
+
+document.getElementById('btnLimpar').addEventListener('click', () => {
+  document.getElementById('fBusca').value = '';
+  document.getElementById('fDataIni').value = '';
+  document.getElementById('fDataFim').value = '';
+  document.getElementById('fMotivo').value = '';
+  renderizar();
+});
+
+document.getElementById('btnExport').addEventListener('click', () => {
+  const dados = filtrar();
+  const header = ['Data','Colaborador','Posto/Contrato','Motivo','Horário','Valor'];
+  const linhas = dados.map(d => [d.data, d.colaborador, d.contrato, d.motivo, d.horario, d.valor]
+    .map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(';'));
+  const csv = [header.join(';'), ...linhas].join('\n');
+  const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `lancamentos_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Modal manual
+const modalBg = document.getElementById('modalBg');
+document.getElementById('btnNovo').addEventListener('click', () => {
+  document.getElementById('mData').value = new Date().toISOString().slice(0,10);
+  modalBg.classList.add('open');
+});
+document.getElementById('mCancelar').addEventListener('click', () => modalBg.classList.remove('open'));
+
+document.getElementById('mSalvar').addEventListener('click', async () => {
+  const dataISO = document.getElementById('mData').value;
+  const colaborador = document.getElementById('mColab').value.trim();
+  const contrato = document.getElementById('mContrato').value.trim();
+  const motivo = document.getElementById('mMotivo').value.trim();
+  const horario = document.getElementById('mHorario').value.trim();
+  const valor = document.getElementById('mValor').value.trim();
+
+  if(!dataISO || !colaborador){
+    alert('Preencha ao menos a data e o colaborador.');
+    return;
+  }
+
+  const [ano, mes, dia] = dataISO.split('-');
+  await db.collection(COLLECTION).add({
+    dataISO, data: `${dia}/${mes}/${ano}`,
+    colaborador, contrato, motivo, horario, valor,
+    origem: 'manual',
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  modalBg.classList.remove('open');
+  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
+});
+
+modalBg.addEventListener('click', e => { if(e.target === modalBg) modalBg.classList.remove('open'); });
+</script>
+</body>
+</html>
