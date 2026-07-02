@@ -1,0 +1,206 @@
+/**
+ * BOT DE CAPTURA — Lançamentos via WhatsApp (Grupo M.S)
+ * ---------------------------------------------------------------
+ * O que faz:
+ *  1. Conecta no WhatsApp via QR Code (biblioteca Baileys)
+ *  2. Escuta mensagens de um grupo específico
+ *  3. Tenta extrair os campos com REGEX (rápido, sem custo)
+ *  4. Se não bater no padrão, usa a API da Anthropic como fallback
+ *  5. Grava o resultado no Firestore, na coleção "lancamentos"
+ *     (mesma coleção que o painel HTML já está lendo)
+ *
+ * Formato esperado da mensagem (o que você já usa no grupo):
+ *
+ *   📌 Movimentação realizada em 02/07/2026
+ *   👤 FT: Carlos Lopes
+ *   ⚠️ Motivo: Extra
+ *   💵 Valor R$: 160,00
+ *   🕒 Horário: 18:00 as 06:00
+ *   📄 Contrato: Pantanal
+ *
+ * ---------------------------------------------------------------
+ * INSTALAÇÃO (rodar num servidor, ex: Railway/Render/VPS - não
+ * funciona em GitHub Pages/Netlify pois precisa ficar 24/7 ativo):
+ *
+ *   npm init -y
+ *   npm install @whiskeysockets/baileys firebase-admin qrcode-terminal pino @anthropic-ai/sdk
+ *
+ * Depois (SEM precisar de arquivo .json no repositório - tudo via
+ * variável de ambiente, então pode usar repositório PÚBLICO):
+ *   1. Abra o arquivo de credenciais de "Service Account" do Firebase
+ *      (Configurações do projeto > Contas de serviço > Gerar nova
+ *      chave privada) num editor de texto e copie TODO o conteúdo.
+ *   2. No Railway: vá em Variables > New Variable, crie uma variável
+ *      chamada FIREBASE_CREDENTIALS e cole o JSON inteiro como valor.
+ *   3. Ajuste GROUP_NAME abaixo com o nome exato do grupo.
+ *   4. (Opcional, só se quiser o fallback de IA) crie a variável
+ *      ANTHROPIC_API_KEY no Railway também.
+ *   5. Suba o código pro GitHub (pode ser público, sem risco).
+ *   6. No primeiro deploy, veja os logs do Railway para o QR Code
+ *      (aparece como texto ASCII) e escaneie com o WhatsApp do
+ *      número dedicado para o bot.
+ * ---------------------------------------------------------------
+ */
+
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason
+} = require('@whiskeysockets/baileys');
+const qrcode = require('qrcode-terminal');
+const admin = require('firebase-admin');
+const pino = require('pino');
+
+// ===================== CONFIGURAÇÃO =====================
+const GROUP_NAME = 'NOME_EXATO_DO_GRUPO_AQUI'; // ex: 'Lançamentos - Grupo M.S'
+const COLLECTION = 'lancamentos';
+const USE_AI_FALLBACK = !!process.env.ANTHROPIC_API_KEY;
+// ==========================================================
+
+const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+const db = admin.firestore();
+
+let anthropic = null;
+if (USE_AI_FALLBACK) {
+  const Anthropic = require('@anthropic-ai/sdk');
+  anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
+
+// ---------- Extração via REGEX (formato padrão do grupo) ----------
+function extrairComRegex(texto) {
+  const dataMatch = texto.match(/(\d{2}\/\d{2}\/\d{4})/);
+  const ftMatch = texto.match(/(?:FT|Colaborador)[:\s]*\*?\s*([^\n*]+)/i);
+  const motivoMatch = texto.match(/Motivo[:\s]*\*?\s*([^\n*]+)/i);
+  const valorMatch = texto.match(/Valor\s*R?\$?[:\s]*\*?\s*([\d.,]+)/i);
+  const horarioMatch = texto.match(/Hor[áa]rio[:\s]*\*?\s*([^\n*]+)/i);
+  const contratoMatch = texto.match(/Contrato[:\s]*\*?\s*([^\n*]+)/i);
+
+  if (!dataMatch || !ftMatch) return null; // padrão não bateu, precisa de fallback
+
+  const [dia, mes, ano] = dataMatch[1].split('/');
+  return {
+    dataISO: `${ano}-${mes}-${dia}`,
+    data: dataMatch[1],
+    colaborador: ftMatch[1].trim(),
+    motivo: motivoMatch ? motivoMatch[1].trim() : '',
+    valor: valorMatch ? valorMatch[1].trim() : '',
+    horario: horarioMatch ? horarioMatch[1].trim() : '',
+    contrato: contratoMatch ? contratoMatch[1].trim() : '',
+    origem: 'whatsapp-regex'
+  };
+}
+
+// ---------- Extração via IA (fallback para texto livre) ----------
+async function extrairComIA(texto) {
+  if (!anthropic) return null;
+
+  const resp = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 300,
+    messages: [{
+      role: 'user',
+      content: `Extraia os campos da mensagem abaixo, enviada num grupo de WhatsApp de uma empresa de segurança privada. Responda APENAS com um JSON válido, sem texto adicional, no formato:
+{"dataISO":"AAAA-MM-DD","data":"DD/MM/AAAA","colaborador":"","motivo":"","valor":"","horario":"","contrato":""}
+Se algum campo não existir na mensagem, deixe como string vazia. Use a data de hoje (${new Date().toLocaleDateString('pt-BR')}) se nenhuma data for mencionada.
+
+Mensagem:
+"""
+${texto}
+"""`
+    }]
+  });
+
+  try {
+    const raw = resp.content.find(c => c.type === 'text')?.text || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    parsed.origem = 'whatsapp-ia';
+    return parsed;
+  } catch (e) {
+    console.error('Falha ao interpretar resposta da IA:', e);
+    return null;
+  }
+}
+
+// ---------- Grava no Firestore ----------
+async function salvarLancamento(dados) {
+  await db.collection(COLLECTION).add({
+    ...dados,
+    criadoEm: admin.firestore.FieldValue.serverTimestamp()
+  });
+  console.log('✅ Lançamento salvo:', dados.colaborador, dados.data);
+}
+
+// ---------- Processa cada mensagem recebida ----------
+async function processarMensagem(texto) {
+  if (!texto || texto.length < 15) return; // ignora mensagens curtas/irrelevantes
+
+  let dados = extrairComRegex(texto);
+
+  if (!dados && USE_AI_FALLBACK) {
+    console.log('⚙️  Padrão não reconhecido, tentando IA...');
+    dados = await extrairComIA(texto);
+  }
+
+  if (!dados || !dados.colaborador) {
+    console.log('⏭️  Mensagem ignorada (não parece um lançamento):', texto.slice(0, 60));
+    return;
+  }
+
+  await salvarLancamento(dados);
+}
+
+// ---------- Conexão com o WhatsApp ----------
+async function iniciar() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+
+  const sock = makeWASocket({
+    auth: state,
+    logger: pino({ level: 'silent' }),
+    printQRInTerminal: false
+  });
+
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect, qr } = update;
+    if (qr) {
+      console.log('📱 Escaneie o QR Code abaixo com o WhatsApp do número do bot:');
+      qrcode.generate(qr, { small: true });
+    }
+    if (connection === 'close') {
+      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      console.log('Conexão encerrada. Reconectar?', shouldReconnect);
+      if (shouldReconnect) iniciar();
+    } else if (connection === 'open') {
+      console.log('✅ Bot conectado ao WhatsApp.');
+    }
+  });
+
+  sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    for (const msg of messages) {
+      if (!msg.message || msg.key.fromMe) continue;
+
+      const chatId = msg.key.remoteJid; // grupos terminam em @g.us
+      if (!chatId?.endsWith('@g.us')) continue;
+
+      // Filtra pelo nome do grupo
+      try {
+        const metadata = await sock.groupMetadata(chatId);
+        if (metadata.subject !== GROUP_NAME) continue;
+      } catch (e) {
+        continue;
+      }
+
+      const texto =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        '';
+
+      await processarMensagem(texto);
+    }
+  });
+}
+
+iniciar().catch(err => console.error('Erro ao iniciar o bot:', err));
