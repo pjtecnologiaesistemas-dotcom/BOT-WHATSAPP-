@@ -52,7 +52,7 @@ const admin = require('firebase-admin');
 const pino = require('pino');
 
 // ===================== CONFIGURAÇÃO =====================
-const GROUP_NAME = 'NOME_EXATO_DO_GRUPO_AQUI'; // ex: 'Lançamentos - Grupo M.S'
+const GROUP_NAME = 'Movimentações Diárias';
 const COLLECTION = 'lancamentos';
 const USE_AI_FALLBACK = !!process.env.ANTHROPIC_API_KEY;
 // ==========================================================
