@@ -42,6 +42,14 @@
  * ---------------------------------------------------------------
  */
 
+// Polyfill do crypto global — necessário porque o Baileys espera o
+// Web Crypto API disponível globalmente (padrão a partir do Node 20).
+// Isso garante compatibilidade mesmo se o servidor rodar Node 18.
+const { webcrypto } = require('crypto');
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
+}
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
