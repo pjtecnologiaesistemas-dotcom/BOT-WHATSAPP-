@@ -1,413 +1,290 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PJ Tecnologia — Lançamentos</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<style>
-  :root{
-    --bg:#0a0e14; --bg2:#101720; --card:#141c27; --border:#1f2b38;
-    --cyan:#22d3ee; --amber:#f5a524; --text:#e6edf3; --muted:#7c8b9c;
-    --danger:#f0556b; --ok:#3ddc97;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    background:radial-gradient(1200px 600px at 80% -10%, #0f2733 0%, var(--bg) 55%);
-    color:var(--text); min-height:100vh; padding:16px;
-  }
-  header{
-    display:flex; align-items:center; justify-content:space-between;
-    margin-bottom:18px; flex-wrap:wrap; gap:10px;
-  }
-  .brand{display:flex; align-items:center; gap:12px;}
-  .logo-hex{
-    position:relative; width:42px; height:46px;
-    display:flex; align-items:center; justify-content:center; flex-shrink:0;
-  }
-  .logo-hex svg{
-    position:absolute; inset:0; width:100%; height:100%;
-    filter:drop-shadow(0 0 8px rgba(0,200,248,.45));
-  }
-  .logo-hex .monogram{
-    position:relative; z-index:2; display:flex; flex-direction:column;
-    align-items:center; line-height:.78; margin-top:1px;
-  }
-  .logo-hex .monogram .ltP{
-    font-family:'Orbitron', sans-serif; font-weight:900; font-size:1.05rem;
-    letter-spacing:-1px; color:#eef4ff; text-shadow:0 0 10px rgba(0,234,255,.6);
-  }
-  .logo-hex .monogram .ltJ{
-    font-family:'Orbitron', sans-serif; font-weight:900; font-size:.72rem;
-    letter-spacing:-1px; color:#00eaff; text-shadow:0 0 10px rgba(0,234,255,.75);
-    margin-top:-1px; margin-left:9px;
-  }
-  .brand h1{font-size:16px; font-weight:700; letter-spacing:.3px; margin-top:3px;}
-  .brand span{display:block; font-size:11px; color:var(--muted); font-weight:400;}
-  #syncStatus{
-    display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
-    background:rgba(255,255,255,.03); border:1px solid var(--border); padding:6px 12px; border-radius:20px;
-    backdrop-filter:blur(6px);
-  }
-  #syncDot{width:8px; height:8px; border-radius:50%; background:var(--muted); transition:.3s;}
-  #syncDot.on{background:var(--ok); box-shadow:0 0 8px var(--ok);}
-  #syncDot.off{background:var(--danger); box-shadow:0 0 8px var(--danger);}
+/**
+ * BOT DE CAPTURA — Lançamentos via WhatsApp (Grupo M.S)
+ * ---------------------------------------------------------------
+ * O que faz:
+ *  1. Conecta no WhatsApp via QR Code (biblioteca Baileys)
+ *  2. Escuta mensagens de um grupo específico
+ *  3. Tenta extrair os campos com REGEX (rápido, sem custo)
+ *  4. Se não bater no padrão, usa a API da Anthropic como fallback
+ *  5. Grava o resultado no Firestore, na coleção "lancamentos"
+ *     (mesma coleção que o painel HTML já está lendo)
+ *
+ * Formato esperado da mensagem (o que você já usa no grupo):
+ *
+ *   📌 Movimentação realizada em 02/07/2026
+ *   👤 FT: Carlos Lopes
+ *   ⚠️ Motivo: Extra
+ *   💵 Valor R$: 160,00
+ *   🕒 Horário: 18:00 as 06:00
+ *   📄 Contrato: Pantanal
+ *
+ * ---------------------------------------------------------------
+ * INSTALAÇÃO (rodar num servidor, ex: Railway/Render/VPS - não
+ * funciona em GitHub Pages/Netlify pois precisa ficar 24/7 ativo):
+ *
+ *   npm init -y
+ *   npm install @whiskeysockets/baileys firebase-admin qrcode-terminal pino @anthropic-ai/sdk
+ *
+ * Depois (SEM precisar de arquivo .json no repositório - tudo via
+ * variável de ambiente, então pode usar repositório PÚBLICO):
+ *   1. Abra o arquivo de credenciais de "Service Account" do Firebase
+ *      (Configurações do projeto > Contas de serviço > Gerar nova
+ *      chave privada) num editor de texto e copie TODO o conteúdo.
+ *   2. No Railway: vá em Variables > New Variable, crie uma variável
+ *      chamada FIREBASE_CREDENTIALS e cole o JSON inteiro como valor.
+ *   3. Ajuste GROUP_NAME abaixo com o nome exato do grupo.
+ *   4. Crie a variável PAIRING_PHONE no Railway com o número do
+ *      WhatsApp DEDICADO ao bot, no formato internacional sem
+ *      espaços/símbolos. Ex: 5511999998888 (55 = Brasil, DDD + número).
+ *   5. (Opcional, só se quiser o fallback de IA) crie a variável
+ *      ANTHROPIC_API_KEY no Railway também.
+ *   6. Suba o código pro GitHub (pode ser público, sem risco).
+ *   7. Nos logs do Railway vai aparecer um CÓDIGO DE 8 DÍGITOS
+ *      (não um QR Code). No celular do número dedicado: WhatsApp >
+ *      Configurações > Aparelhos conectados > Conectar um aparelho >
+ *      "Conectar com número de telefone" > digita esse código.
+ * ---------------------------------------------------------------
+ */
 
-  .toolbar{
-    display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;
-  }
-  .field{display:flex; flex-direction:column; gap:4px;}
-  .field label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;}
-  .field input, .field select{
-    background:var(--card); border:1px solid var(--border); color:var(--text);
-    padding:8px 10px; border-radius:8px; font-size:13px; outline:none; min-width:130px;
-  }
-  .field input:focus, .field select:focus{border-color:var(--cyan);}
-  .btn{
-    padding:9px 16px; border-radius:8px; border:1px solid var(--border);
-    background:var(--card); color:var(--text); font-size:13px; font-weight:600; cursor:pointer;
-    transition:.15s;
-  }
-  .btn:hover{border-color:var(--cyan); color:var(--cyan);}
-  .btn.primary{background:linear-gradient(135deg,var(--cyan),#0891b2); color:#00161b; border:none;}
-  .btn.primary:hover{filter:brightness(1.1); color:#00161b;}
-  .btn.ghost{background:transparent;}
-
-  .summary{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;}
-  .kpi{
-    background:var(--card); border:1px solid var(--border); border-radius:10px;
-    padding:12px 16px; min-width:140px;
-  }
-  .kpi .n{font-size:20px; font-weight:700; color:var(--cyan);}
-  .kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-top:2px;}
-
-  .table-wrap{
-    background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:auto;
-  }
-  table{width:100%; border-collapse:collapse; font-size:13px;}
-  th{
-    text-align:left; padding:12px 14px; color:var(--muted); font-weight:600;
-    text-transform:uppercase; font-size:10.5px; letter-spacing:.5px;
-    border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card);
-  }
-  td{padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.04); white-space:nowrap;}
-  tr:hover td{background:rgba(34,211,238,.04);}
-  .motivo-tag{
-    padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600;
-    background:rgba(245,165,36,.12); color:var(--amber); border:1px solid rgba(245,165,36,.25);
-  }
-  .valor{color:var(--ok); font-weight:600;}
-  .empty{padding:40px; text-align:center; color:var(--muted); font-size:13px;}
-  .del{background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px;}
-  .del:hover{color:var(--danger);}
-
-  /* Modal de lançamento manual */
-  .modal-bg{
-    position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
-    align-items:center; justify-content:center; z-index:50; padding:16px; backdrop-filter:blur(3px);
-  }
-  .modal-bg.open{display:flex;}
-  .modal{
-    background:var(--bg2); border:1px solid var(--border); border-radius:14px;
-    padding:22px; width:100%; max-width:420px;
-  }
-  .modal h2{font-size:15px; margin-bottom:16px;}
-  .modal .field{width:100%; margin-bottom:10px;}
-  .modal .field input{width:100%;}
-  .modal .row{display:flex; gap:8px;}
-  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:14px;}
-
-  @media (max-width:640px){
-    .toolbar{flex-direction:column; align-items:stretch;}
-    .field input, .field select{min-width:0; width:100%;}
-  }
-</style>
-</head>
-<body>
-
-<header>
-  <div class="brand">
-    <div class="logo-hex">
-      <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="hexGradPainel" x1="0" y1="0" x2="100" y2="110" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#0d3878"/>
-            <stop offset="100%" stop-color="#051225"/>
-          </linearGradient>
-          <linearGradient id="hexStrokePainel" x1="0" y1="0" x2="100" y2="110" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#00eaff"/>
-            <stop offset="50%" stop-color="#0088cc"/>
-            <stop offset="100%" stop-color="#00c8f8"/>
-          </linearGradient>
-        </defs>
-        <polygon points="50,4 96,28 96,82 50,106 4,82 4,28" fill="url(#hexGradPainel)" stroke="url(#hexStrokePainel)" stroke-width="3"/>
-        <circle cx="50" cy="4" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="96" cy="28" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="96" cy="82" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="50" cy="106" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="4" cy="82" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="4" cy="28" r="2.5" fill="#00eaff" opacity=".8"/>
-      </svg>
-      <div class="monogram"><span class="ltP">P</span><span class="ltJ">J</span></div>
-    </div>
-    <div>
-      <h1>Lançamentos — Grupo M.S<span>PJ Tecnologia e Sistemas</span></h1>
-    </div>
-  </div>
-  <div id="syncStatus"><span id="syncDot"></span><span id="syncText">Conectando...</span></div>
-</header>
-
-<div class="summary">
-  <div class="kpi"><div class="n" id="kpiTotal">0</div><div class="l">Lançamentos</div></div>
-  <div class="kpi"><div class="n" id="kpiValor">R$ 0,00</div><div class="l">Total no período</div></div>
-  <div class="kpi"><div class="n" id="kpiColab">0</div><div class="l">Colaboradores únicos</div></div>
-</div>
-
-<div class="toolbar">
-  <div class="field">
-    <label>Buscar</label>
-    <input type="text" id="fBusca" placeholder="Nome, posto, contrato...">
-  </div>
-  <div class="field">
-    <label>Data início</label>
-    <input type="date" id="fDataIni">
-  </div>
-  <div class="field">
-    <label>Data fim</label>
-    <input type="date" id="fDataFim">
-  </div>
-  <div class="field">
-    <label>Motivo</label>
-    <select id="fMotivo"><option value="">Todos</option></select>
-  </div>
-  <button class="btn" id="btnLimpar">Limpar filtros</button>
-  <button class="btn" id="btnExport">Exportar CSV</button>
-  <button class="btn primary" id="btnNovo">+ Novo lançamento</button>
-</div>
-
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
-        <th>Motivo</th><th>Horário</th><th>Valor</th><th></th>
-      </tr>
-    </thead>
-    <tbody id="tbody">
-      <tr><td colspan="7" class="empty">Carregando lançamentos...</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<div class="modal-bg" id="modalBg">
-  <div class="modal">
-    <h2>Novo lançamento manual</h2>
-    <div class="field"><label>Data</label><input type="date" id="mData"></div>
-    <div class="field"><label>Colaborador (FT)</label><input type="text" id="mColab" placeholder="Nome completo"></div>
-    <div class="field"><label>Posto / Contrato</label><input type="text" id="mContrato" placeholder="Ex: Pantanal"></div>
-    <div class="field"><label>Motivo</label><input type="text" id="mMotivo" placeholder="Ex: Extra, Falta, Cobertura"></div>
-    <div class="row">
-      <div class="field" style="flex:1"><label>Horário</label><input type="text" id="mHorario" placeholder="18:00 as 06:00"></div>
-      <div class="field" style="flex:1"><label>Valor R$</label><input type="text" id="mValor" placeholder="160,00"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn ghost" id="mCancelar">Cancelar</button>
-      <button class="btn primary" id="mSalvar">Salvar</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// ======================================================
-// CONFIGURAÇÃO FIREBASE — troque pelos dados do seu projeto
-// (pode reaproveitar o mesmo projeto do Controle de Acesso
-// ou da FT, criando só a coleção "lancamentos")
-// ======================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyCipzGGPY1U-Td8sJ1mAnd9VoIXQne4mrE",
-  authDomain: "bot-whatsapp-ee8ce.firebaseapp.com",
-  projectId: "bot-whatsapp-ee8ce",
-  storageBucket: "bot-whatsapp-ee8ce.firebasestorage.app",
-  messagingSenderId: "406562279464",
-  appId: "1:406562279464:web:3f427e5a722932fd8f251d"
-};
-
-const COLLECTION = "lancamentos"; // mesmo nome que o bot vai usar para gravar
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
-
-const dot = document.getElementById('syncDot');
-const syncText = document.getElementById('syncText');
-let allDocs = [];
-
-auth.signInAnonymously().catch(err => {
-  syncText.textContent = 'Erro de autenticação';
-  dot.className = 'off';
-  console.error(err);
-});
-
-auth.onAuthStateChanged(user => {
-  if (user) {
-    syncText.textContent = 'Sincronizado';
-    dot.className = 'on';
-    escutarLancamentos();
-  }
-});
-
-function escutarLancamentos(){
-  db.collection(COLLECTION).orderBy('criadoEm', 'desc').onSnapshot(
-    snap => {
-      allDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      popularFiltroMotivo();
-      renderizar();
-      dot.className = 'on';
-      syncText.textContent = 'Sincronizado';
-    },
-    err => {
-      console.error(err);
-      dot.className = 'off';
-      syncText.textContent = 'Sem conexão';
-    }
-  );
+// Polyfill do crypto global — necessário porque o Baileys espera o
+// Web Crypto API disponível globalmente (padrão a partir do Node 20).
+// Isso garante compatibilidade mesmo se o servidor rodar Node 18.
+const { webcrypto } = require('crypto');
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
 }
 
-function popularFiltroMotivo(){
-  const sel = document.getElementById('fMotivo');
-  const atuais = new Set(Array.from(sel.options).map(o => o.value));
-  const motivos = [...new Set(allDocs.map(d => d.motivo).filter(Boolean))];
-  motivos.forEach(m => {
-    if(!atuais.has(m)){
-      const opt = document.createElement('option');
-      opt.value = m; opt.textContent = m;
-      sel.appendChild(opt);
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion
+} = require('@whiskeysockets/baileys');
+const qrcode = require('qrcode-terminal');
+const admin = require('firebase-admin');
+const pino = require('pino');
+
+// ===================== CONFIGURAÇÃO =====================
+const GROUP_NAME = 'Movimentações Diárias';
+const COLLECTION = 'lancamentos';
+const USE_AI_FALLBACK = !!process.env.ANTHROPIC_API_KEY;
+// ==========================================================
+
+const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+const db = admin.firestore();
+
+let anthropic = null;
+if (USE_AI_FALLBACK) {
+  const Anthropic = require('@anthropic-ai/sdk');
+  anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
+
+// ---------- Extração via REGEX (formato padrão do grupo) ----------
+function extrairComRegex(texto) {
+  const dataMatch = texto.match(/(\d{2}\/\d{2}\/\d{4})/);
+  if (!dataMatch) return null;
+
+  // Remove asteriscos (formatação de negrito do WhatsApp) para não
+  // depender de saber se o padrão usado foi "*Campo:*" ou "*Campo*:"
+  const limpo = texto.replace(/\*/g, '');
+
+  // Extrai um campo, pulando linhas que claramente são a data/cabeçalho
+  // duplicado por engano (contém "Movimentação" ou outra data dd/mm/aaaa)
+  function extrairCampo(regexLabel) {
+    const regex = new RegExp(`${regexLabel}\\s*:?\\s*([^\\n]+)`, 'gi');
+    const candidatos = [...limpo.matchAll(regex)];
+    for (const m of candidatos) {
+      const valor = m[1].trim();
+      if (!valor) continue;
+      if (/movimenta[cç][aã]o/i.test(valor)) continue;
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(valor)) continue;
+      return valor;
     }
+    return '';
+  }
+
+  const colaborador = extrairCampo('(?:FT|Colaborador)');
+  if (!colaborador) return null; // sem colaborador válido, não é um lançamento
+
+  const [dia, mes, ano] = dataMatch[1].split('/');
+  return {
+    dataISO: `${ano}-${mes}-${dia}`,
+    data: dataMatch[1],
+    colaborador,
+    motivo: extrairCampo('Motivo'),
+    valor: (limpo.match(/Valor\s*R?\$?\s*:?\s*\*?\s*([\d.,]+)/i) || [])[1] || '',
+    horario: extrairCampo('Hor[áa]rio'),
+    contrato: extrairCampo('Contrato'),
+    origem: 'whatsapp-regex'
+  };
+}
+
+// ---------- Extração via IA (fallback para texto livre) ----------
+async function extrairComIA(texto) {
+  if (!anthropic) return null;
+
+  const resp = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 300,
+    messages: [{
+      role: 'user',
+      content: `Extraia os campos da mensagem abaixo, enviada num grupo de WhatsApp de uma empresa de segurança privada. Responda APENAS com um JSON válido, sem texto adicional, no formato:
+{"dataISO":"AAAA-MM-DD","data":"DD/MM/AAAA","colaborador":"","motivo":"","valor":"","horario":"","contrato":""}
+Se algum campo não existir na mensagem, deixe como string vazia. Use a data de hoje (${new Date().toLocaleDateString('pt-BR')}) se nenhuma data for mencionada.
+
+Mensagem:
+"""
+${texto}
+"""`
+    }]
   });
+
+  try {
+    const raw = resp.content.find(c => c.type === 'text')?.text || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    parsed.origem = 'whatsapp-ia';
+    return parsed;
+  } catch (e) {
+    console.error('Falha ao interpretar resposta da IA:', e);
+    return null;
+  }
 }
 
-function parseValor(v){
-  if(!v) return 0;
-  const n = String(v).replace(/[^\d,.-]/g,'').replace(',', '.');
-  return parseFloat(n) || 0;
-}
-
-function filtrar(){
-  const busca = document.getElementById('fBusca').value.toLowerCase();
-  const dIni = document.getElementById('fDataIni').value;
-  const dFim = document.getElementById('fDataFim').value;
-  const motivo = document.getElementById('fMotivo').value;
-
-  return allDocs.filter(d => {
-    if(busca){
-      const alvo = `${d.colaborador||''} ${d.contrato||''} ${d.motivo||''}`.toLowerCase();
-      if(!alvo.includes(busca)) return false;
-    }
-    if(dIni && d.dataISO && d.dataISO < dIni) return false;
-    if(dFim && d.dataISO && d.dataISO > dFim) return false;
-    if(motivo && d.motivo !== motivo) return false;
-    return true;
+// ---------- Grava no Firestore ----------
+async function salvarLancamento(dados, whatsappMsgId) {
+  await db.collection(COLLECTION).add({
+    ...dados,
+    whatsappMsgId: whatsappMsgId || null,
+    criadoEm: admin.firestore.FieldValue.serverTimestamp()
   });
+  console.log('✅ Lançamento salvo:', dados.colaborador, dados.data);
 }
 
-function renderizar(){
-  const dados = filtrar();
-  const tbody = document.getElementById('tbody');
+// ---------- Remove lançamento quando a mensagem original é apagada ----------
+async function removerLancamentoPorMsgId(whatsappMsgId) {
+  const snap = await db.collection(COLLECTION)
+    .where('whatsappMsgId', '==', whatsappMsgId)
+    .get();
 
-  if(dados.length === 0){
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhum lançamento encontrado. Ajuste os filtros ou aguarde novos lançamentos do grupo.</td></tr>';
-  } else {
-    tbody.innerHTML = dados.map(d => `
-      <tr>
-        <td>${d.data || '—'}</td>
-        <td>${d.colaborador || '—'}</td>
-        <td>${d.contrato || '—'}</td>
-        <td><span class="motivo-tag">${d.motivo || '—'}</span></td>
-        <td>${d.horario || '—'}</td>
-        <td class="valor">${d.valor ? 'R$ ' + d.valor : '—'}</td>
-        <td><button class="del" onclick="excluir('${d.id}')" title="Excluir">✕</button></td>
-      </tr>
-    `).join('');
-  }
-
-  document.getElementById('kpiTotal').textContent = dados.length;
-  document.getElementById('kpiValor').textContent =
-    'R$ ' + dados.reduce((s,d) => s + parseValor(d.valor), 0).toFixed(2).replace('.', ',');
-  document.getElementById('kpiColab').textContent =
-    new Set(dados.map(d => d.colaborador).filter(Boolean)).size;
-}
-
-function excluir(id){
-  if(confirm('Excluir este lançamento?')){
-    db.collection(COLLECTION).doc(id).delete();
-  }
-}
-
-['fBusca','fDataIni','fDataFim','fMotivo'].forEach(id => {
-  document.getElementById(id).addEventListener('input', renderizar);
-  document.getElementById(id).addEventListener('change', renderizar);
-});
-
-document.getElementById('btnLimpar').addEventListener('click', () => {
-  document.getElementById('fBusca').value = '';
-  document.getElementById('fDataIni').value = '';
-  document.getElementById('fDataFim').value = '';
-  document.getElementById('fMotivo').value = '';
-  renderizar();
-});
-
-document.getElementById('btnExport').addEventListener('click', () => {
-  const dados = filtrar();
-  const header = ['Data','Colaborador','Posto/Contrato','Motivo','Horário','Valor'];
-  const linhas = dados.map(d => [d.data, d.colaborador, d.contrato, d.motivo, d.horario, d.valor]
-    .map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(';'));
-  const csv = [header.join(';'), ...linhas].join('\n');
-  const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `lancamentos_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-});
-
-// Modal manual
-const modalBg = document.getElementById('modalBg');
-document.getElementById('btnNovo').addEventListener('click', () => {
-  document.getElementById('mData').value = new Date().toISOString().slice(0,10);
-  modalBg.classList.add('open');
-});
-document.getElementById('mCancelar').addEventListener('click', () => modalBg.classList.remove('open'));
-
-document.getElementById('mSalvar').addEventListener('click', async () => {
-  const dataISO = document.getElementById('mData').value;
-  const colaborador = document.getElementById('mColab').value.trim();
-  const contrato = document.getElementById('mContrato').value.trim();
-  const motivo = document.getElementById('mMotivo').value.trim();
-  const horario = document.getElementById('mHorario').value.trim();
-  const valor = document.getElementById('mValor').value.trim();
-
-  if(!dataISO || !colaborador){
-    alert('Preencha ao menos a data e o colaborador.');
+  if (snap.empty) {
+    console.log('⚠️  Mensagem apagada no WhatsApp, mas nenhum lançamento correspondente foi encontrado.');
     return;
   }
 
-  const [ano, mes, dia] = dataISO.split('-');
-  await db.collection(COLLECTION).add({
-    dataISO, data: `${dia}/${mes}/${ano}`,
-    colaborador, contrato, motivo, horario, valor,
-    origem: 'manual',
-    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  for (const doc of snap.docs) {
+    await doc.ref.delete();
+    console.log('🗑️  Lançamento removido (mensagem apagada no WhatsApp):', doc.id);
+  }
+}
+
+// ---------- Processa cada mensagem recebida ----------
+async function processarMensagem(texto, whatsappMsgId) {
+  if (!texto || texto.length < 15) return; // ignora mensagens curtas/irrelevantes
+
+  let dados = extrairComRegex(texto);
+
+  if (!dados && USE_AI_FALLBACK) {
+    console.log('⚙️  Padrão não reconhecido, tentando IA...');
+    dados = await extrairComIA(texto);
+  }
+
+  if (!dados || !dados.colaborador) {
+    console.log('⏭️  Mensagem ignorada (não parece um lançamento):', texto.slice(0, 60));
+    return;
+  }
+
+  await salvarLancamento(dados, whatsappMsgId);
+}
+
+// ---------- Conexão com o WhatsApp ----------
+async function iniciar() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  const { version } = await fetchLatestBaileysVersion();
+  const usarPairingCode = !!process.env.PAIRING_PHONE && !state.creds.registered;
+
+  const sock = makeWASocket({
+    auth: state,
+    logger: pino({ level: 'silent' }),
+    printQRInTerminal: false,
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
+    version
   });
 
-  modalBg.classList.remove('open');
-  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
-});
+  if (usarPairingCode) {
+    // Espera meio segundo pro socket inicializar antes de pedir o código
+    setTimeout(async () => {
+      try {
+        const codigo = await sock.requestPairingCode(process.env.PAIRING_PHONE);
+        console.log('==================================================');
+        console.log(`🔑 CÓDIGO DE PAREAMENTO: ${codigo}`);
+        console.log('No celular do bot: WhatsApp > Aparelhos conectados >');
+        console.log('Conectar um aparelho > Conectar com número de telefone');
+        console.log('==================================================');
+      } catch (e) {
+        console.log('Erro ao gerar código de pareamento:', e.message);
+      }
+    }, 3000);
+  }
 
-modalBg.addEventListener('click', e => { if(e.target === modalBg) modalBg.classList.remove('open'); });
-</script>
-</body>
-</html>
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect, qr } = update;
+    if (qr && !usarPairingCode) {
+      console.log('📱 Escaneie o QR Code abaixo com o WhatsApp do número do bot:');
+      qrcode.generate(qr, { small: true });
+    }
+    if (connection === 'close') {
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      console.log(`Conexão encerrada. Código: ${statusCode}. Motivo: ${lastDisconnect?.error?.message || 'desconhecido'}. Reconectar? ${shouldReconnect}`);
+      if (shouldReconnect) {
+        setTimeout(() => iniciar(), 5000); // espera 5s antes de tentar de novo
+      }
+    } else if (connection === 'open') {
+      console.log('✅ Bot conectado ao WhatsApp.');
+    }
+  });
+
+  sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    for (const msg of messages) {
+      if (!msg.message) continue;
+
+      const chatId = msg.key.remoteJid; // grupos terminam em @g.us
+      if (!chatId?.endsWith('@g.us')) continue;
+
+      // Confere se é do grupo certo (vale tanto para lançamento novo quanto para apagamento)
+      let ehGrupoCerto = false;
+      try {
+        const metadata = await sock.groupMetadata(chatId);
+        ehGrupoCerto = metadata.subject === GROUP_NAME;
+      } catch (e) {
+        continue;
+      }
+      if (!ehGrupoCerto) continue;
+
+      // Mensagem apagada "para todos" chega como um protocolMessage do tipo REVOKE,
+      // contendo a referência (key.id) da mensagem original que foi removida.
+      if (msg.message.protocolMessage?.type === 0) {
+        const idApagada = msg.message.protocolMessage.key?.id;
+        if (idApagada) {
+          await removerLancamentoPorMsgId(idApagada);
+        }
+        continue;
+      }
+
+      if (msg.key.fromMe) continue;
+
+      const texto =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        '';
+
+      await processarMensagem(texto, msg.key.id);
+    }
+  });
+}
+
+iniciar().catch(err => console.error('Erro ao iniciar o bot:', err));
