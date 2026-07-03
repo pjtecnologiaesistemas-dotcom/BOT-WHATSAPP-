@@ -53,7 +53,8 @@ if (!globalThis.crypto) {
 const {
   default: makeWASocket,
   useMultiFileAuthState,
-  DisconnectReason
+  DisconnectReason,
+  fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
@@ -162,12 +163,14 @@ async function processarMensagem(texto) {
 // ---------- Conexão com o WhatsApp ----------
 async function iniciar() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
     auth: state,
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: ['PJ Tecnologia', 'Chrome', '110.0.0']
+    browser: ['PJ Tecnologia', 'Chrome', '110.0.0'],
+    version
   });
 
   sock.ev.on('connection.update', (update) => {
