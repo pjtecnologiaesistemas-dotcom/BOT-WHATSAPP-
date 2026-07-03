@@ -19,6 +19,13 @@
  *   📄 Contrato: Pantanal
  *
  * ---------------------------------------------------------------
+ * SESSÃO DO WHATSAPP (importante!):
+ * A sessão é gravada no Firestore (coleções "whatsapp_auth" e
+ * "whatsapp_auth_keys"), e não em arquivos no disco do servidor.
+ * Isso significa que ela SOBREVIVE a cada novo deploy/atualização
+ * — você não precisa mais escanear QR Code ou repetir o pareamento
+ * toda vez que atualizar o código do bot.
+ * ---------------------------------------------------------------
  * INSTALAÇÃO (rodar num servidor, ex: Railway/Render/VPS - não
  * funciona em GitHub Pages/Netlify pois precisa ficar 24/7 ativo):
  *
@@ -43,6 +50,8 @@
  *      (não um QR Code). No celular do número dedicado: WhatsApp >
  *      Configurações > Aparelhos conectados > Conectar um aparelho >
  *      "Conectar com número de telefone" > digita esse código.
+ *      Isso só acontece UMA VEZ — nas próximas atualizações o bot
+ *      reconecta sozinho usando a sessão salva no Firestore.
  * ---------------------------------------------------------------
  */
 
@@ -56,13 +65,13 @@ if (!globalThis.crypto) {
 
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
 const pino = require('pino');
+const { useFirestoreAuthState } = require('./firestoreAuthState');
 
 // ===================== CONFIGURAÇÃO =====================
 const GROUP_NAME = 'Movimentações Diárias';
@@ -200,7 +209,10 @@ async function processarMensagem(texto, whatsappMsgId) {
 
 // ---------- Conexão com o WhatsApp ----------
 async function iniciar() {
-  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  // A sessão agora é persistida no Firestore (coleções whatsapp_auth e
+  // whatsapp_auth_keys), então ela sobrevive a deploys/reinícios do
+  // servidor — não depende mais de uma pasta no disco local.
+  const { state, saveCreds } = await useFirestoreAuthState(db, 'bot-lancamentos');
   const { version } = await fetchLatestBaileysVersion();
   const usarPairingCode = !!process.env.PAIRING_PHONE && !state.creds.registered;
 
