@@ -33,12 +33,16 @@
  *   2. No Railway: vá em Variables > New Variable, crie uma variável
  *      chamada FIREBASE_CREDENTIALS e cole o JSON inteiro como valor.
  *   3. Ajuste GROUP_NAME abaixo com o nome exato do grupo.
- *   4. (Opcional, só se quiser o fallback de IA) crie a variável
+ *   4. Crie a variável PAIRING_PHONE no Railway com o número do
+ *      WhatsApp DEDICADO ao bot, no formato internacional sem
+ *      espaços/símbolos. Ex: 5511999998888 (55 = Brasil, DDD + número).
+ *   5. (Opcional, só se quiser o fallback de IA) crie a variável
  *      ANTHROPIC_API_KEY no Railway também.
- *   5. Suba o código pro GitHub (pode ser público, sem risco).
- *   6. No primeiro deploy, veja os logs do Railway para o QR Code
- *      (aparece como texto ASCII) e escaneie com o WhatsApp do
- *      número dedicado para o bot.
+ *   6. Suba o código pro GitHub (pode ser público, sem risco).
+ *   7. Nos logs do Railway vai aparecer um CÓDIGO DE 8 DÍGITOS
+ *      (não um QR Code). No celular do número dedicado: WhatsApp >
+ *      Configurações > Aparelhos conectados > Conectar um aparelho >
+ *      "Conectar com número de telefone" > digita esse código.
  * ---------------------------------------------------------------
  */
 
@@ -164,6 +168,7 @@ async function processarMensagem(texto) {
 async function iniciar() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
   const { version } = await fetchLatestBaileysVersion();
+  const usarPairingCode = !!process.env.PAIRING_PHONE && !state.creds.registered;
 
   const sock = makeWASocket({
     auth: state,
@@ -173,9 +178,25 @@ async function iniciar() {
     version
   });
 
+  if (usarPairingCode) {
+    // Espera meio segundo pro socket inicializar antes de pedir o código
+    setTimeout(async () => {
+      try {
+        const codigo = await sock.requestPairingCode(process.env.PAIRING_PHONE);
+        console.log('==================================================');
+        console.log(`🔑 CÓDIGO DE PAREAMENTO: ${codigo}`);
+        console.log('No celular do bot: WhatsApp > Aparelhos conectados >');
+        console.log('Conectar um aparelho > Conectar com número de telefone');
+        console.log('==================================================');
+      } catch (e) {
+        console.log('Erro ao gerar código de pareamento:', e.message);
+      }
+    }, 500);
+  }
+
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
-    if (qr) {
+    if (qr && !usarPairingCode) {
       console.log('📱 Escaneie o QR Code abaixo com o WhatsApp do número do bot:');
       qrcode.generate(qr, { small: true });
     }
