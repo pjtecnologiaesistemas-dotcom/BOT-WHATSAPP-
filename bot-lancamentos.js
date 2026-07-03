@@ -83,23 +83,39 @@ if (USE_AI_FALLBACK) {
 // ---------- Extração via REGEX (formato padrão do grupo) ----------
 function extrairComRegex(texto) {
   const dataMatch = texto.match(/(\d{2}\/\d{2}\/\d{4})/);
-  const ftMatch = texto.match(/(?:FT|Colaborador)[:\s]*\*?\s*([^\n*]+)/i);
-  const motivoMatch = texto.match(/Motivo[:\s]*\*?\s*([^\n*]+)/i);
-  const valorMatch = texto.match(/Valor\s*R?\$?[:\s]*\*?\s*([\d.,]+)/i);
-  const horarioMatch = texto.match(/Hor[áa]rio[:\s]*\*?\s*([^\n*]+)/i);
-  const contratoMatch = texto.match(/Contrato[:\s]*\*?\s*([^\n*]+)/i);
+  if (!dataMatch) return null;
 
-  if (!dataMatch || !ftMatch) return null; // padrão não bateu, precisa de fallback
+  // Remove asteriscos (formatação de negrito do WhatsApp) para não
+  // depender de saber se o padrão usado foi "*Campo:*" ou "*Campo*:"
+  const limpo = texto.replace(/\*/g, '');
+
+  // Extrai um campo, pulando linhas que claramente são a data/cabeçalho
+  // duplicado por engano (contém "Movimentação" ou outra data dd/mm/aaaa)
+  function extrairCampo(regexLabel) {
+    const regex = new RegExp(`${regexLabel}\\s*:?\\s*([^\\n]+)`, 'gi');
+    const candidatos = [...limpo.matchAll(regex)];
+    for (const m of candidatos) {
+      const valor = m[1].trim();
+      if (!valor) continue;
+      if (/movimenta[cç][aã]o/i.test(valor)) continue;
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(valor)) continue;
+      return valor;
+    }
+    return '';
+  }
+
+  const colaborador = extrairCampo('(?:FT|Colaborador)');
+  if (!colaborador) return null; // sem colaborador válido, não é um lançamento
 
   const [dia, mes, ano] = dataMatch[1].split('/');
   return {
     dataISO: `${ano}-${mes}-${dia}`,
     data: dataMatch[1],
-    colaborador: ftMatch[1].trim(),
-    motivo: motivoMatch ? motivoMatch[1].trim() : '',
-    valor: valorMatch ? valorMatch[1].trim() : '',
-    horario: horarioMatch ? horarioMatch[1].trim() : '',
-    contrato: contratoMatch ? contratoMatch[1].trim() : '',
+    colaborador,
+    motivo: extrairCampo('Motivo'),
+    valor: (limpo.match(/Valor\s*R?\$?\s*:?\s*\*?\s*([\d.,]+)/i) || [])[1] || '',
+    horario: extrairCampo('Hor[áa]rio'),
+    contrato: extrairCampo('Contrato'),
     origem: 'whatsapp-regex'
   };
 }
@@ -137,16 +153,34 @@ ${texto}
 }
 
 // ---------- Grava no Firestore ----------
-async function salvarLancamento(dados) {
+async function salvarLancamento(dados, whatsappMsgId) {
   await db.collection(COLLECTION).add({
     ...dados,
+    whatsappMsgId: whatsappMsgId || null,
     criadoEm: admin.firestore.FieldValue.serverTimestamp()
   });
   console.log('✅ Lançamento salvo:', dados.colaborador, dados.data);
 }
 
+// ---------- Remove lançamento quando a mensagem original é apagada ----------
+async function removerLancamentoPorMsgId(whatsappMsgId) {
+  const snap = await db.collection(COLLECTION)
+    .where('whatsappMsgId', '==', whatsappMsgId)
+    .get();
+
+  if (snap.empty) {
+    console.log('⚠️  Mensagem apagada no WhatsApp, mas nenhum lançamento correspondente foi encontrado.');
+    return;
+  }
+
+  for (const doc of snap.docs) {
+    await doc.ref.delete();
+    console.log('🗑️  Lançamento removido (mensagem apagada no WhatsApp):', doc.id);
+  }
+}
+
 // ---------- Processa cada mensagem recebida ----------
-async function processarMensagem(texto) {
+async function processarMensagem(texto, whatsappMsgId) {
   if (!texto || texto.length < 15) return; // ignora mensagens curtas/irrelevantes
 
   let dados = extrairComRegex(texto);
@@ -161,7 +195,7 @@ async function processarMensagem(texto) {
     return;
   }
 
-  await salvarLancamento(dados);
+  await salvarLancamento(dados, whatsappMsgId);
 }
 
 // ---------- Conexão com o WhatsApp ----------
@@ -216,25 +250,39 @@ async function iniciar() {
 
   sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
-      if (!msg.message || msg.key.fromMe) continue;
+      if (!msg.message) continue;
 
       const chatId = msg.key.remoteJid; // grupos terminam em @g.us
       if (!chatId?.endsWith('@g.us')) continue;
 
-      // Filtra pelo nome do grupo
+      // Confere se é do grupo certo (vale tanto para lançamento novo quanto para apagamento)
+      let ehGrupoCerto = false;
       try {
         const metadata = await sock.groupMetadata(chatId);
-        if (metadata.subject !== GROUP_NAME) continue;
+        ehGrupoCerto = metadata.subject === GROUP_NAME;
       } catch (e) {
         continue;
       }
+      if (!ehGrupoCerto) continue;
+
+      // Mensagem apagada "para todos" chega como um protocolMessage do tipo REVOKE,
+      // contendo a referência (key.id) da mensagem original que foi removida.
+      if (msg.message.protocolMessage?.type === 0) {
+        const idApagada = msg.message.protocolMessage.key?.id;
+        if (idApagada) {
+          await removerLancamentoPorMsgId(idApagada);
+        }
+        continue;
+      }
+
+      if (msg.key.fromMe) continue;
 
       const texto =
         msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
         '';
 
-      await processarMensagem(texto);
+      await processarMensagem(texto, msg.key.id);
     }
   });
 }
