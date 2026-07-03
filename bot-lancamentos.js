@@ -225,7 +225,10 @@ async function iniciar() {
   });
 
   if (usarPairingCode) {
-    // Espera meio segundo pro socket inicializar antes de pedir o código
+    // Pede o código assim que possível — quanto mais cedo, menor a chance
+    // da conexão cair antes de conseguirmos gerá-lo. Se mesmo assim falhar
+    // porque a conexão já fechou, não tem problema: o próprio bloco de
+    // 'connection.update' abaixo vai reiniciar e tentar de novo.
     setTimeout(async () => {
       try {
         const codigo = await sock.requestPairingCode(process.env.PAIRING_PHONE);
@@ -235,9 +238,9 @@ async function iniciar() {
         console.log('Conectar um aparelho > Conectar com número de telefone');
         console.log('==================================================');
       } catch (e) {
-        console.log('Erro ao gerar código de pareamento:', e.message);
+        console.log('Erro ao gerar código de pareamento (vai tentar de novo automaticamente):', e.message);
       }
-    }, 3000);
+    }, 800);
   }
 
   sock.ev.on('connection.update', (update) => {
@@ -248,10 +251,21 @@ async function iniciar() {
     }
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      console.log(`Conexão encerrada. Código: ${statusCode}. Motivo: ${lastDisconnect?.error?.message || 'desconhecido'}. Reconectar? ${shouldReconnect}`);
+      const jaEstavaPareado = state.creds.registered;
+      const foiLogout = statusCode === DisconnectReason.loggedOut;
+
+      // Só paramos de tentar reconectar quando é um logout de verdade de
+      // uma sessão que JÁ estava pareada (ex: você removeu o aparelho
+      // manualmente no celular). Se ainda estamos tentando parear pela
+      // primeira vez, um 401 aqui costuma ser só uma falha passageira no
+      // handshake inicial — vale sempre tentar de novo.
+      const shouldReconnect = !(foiLogout && jaEstavaPareado);
+      console.log(`Conexão encerrada. Código: ${statusCode}. Motivo: ${lastDisconnect?.error?.message || 'desconhecido'}. Já pareado? ${jaEstavaPareado}. Reconectar? ${shouldReconnect}`);
+
       if (shouldReconnect) {
         setTimeout(() => iniciar(), 5000); // espera 5s antes de tentar de novo
+      } else {
+        console.log('⚠️  A sessão foi deslogada pelo WhatsApp (ex: você removeu o aparelho). Reinicie o serviço para parear novamente.');
       }
     } else if (connection === 'open') {
       console.log('✅ Bot conectado ao WhatsApp.');
