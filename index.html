@@ -8,9 +8,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#0a0e14; --bg2:#101720; --card:#141c27; --border:#1f2b38;
@@ -27,7 +24,6 @@
     display:flex; align-items:center; justify-content:space-between;
     margin-bottom:18px; flex-wrap:wrap; gap:10px;
   }
-  .header-left{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
   .brand{display:flex; align-items:center; gap:12px;}
   .logo-hex{
     position:relative; width:42px; height:46px;
@@ -112,7 +108,7 @@
   /* Modal de lançamento manual */
   .modal-bg{
     position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
-    align-items:center; justify-content:center; z-index:90; padding:16px; backdrop-filter:blur(3px);
+    align-items:center; justify-content:center; z-index:50; padding:16px; backdrop-filter:blur(3px);
   }
   .modal-bg.open{display:flex;}
   .modal{
@@ -129,149 +125,13 @@
     .toolbar{flex-direction:column; align-items:stretch;}
     .field input, .field select{min-width:0; width:100%;}
   }
-
-  /* Botão FT Consolidada — integrado ao header, não sobrepõe a logo */
-  .btn-consolidada{
-    display:flex; align-items:center; gap:8px; flex-shrink:0;
-    background:linear-gradient(135deg, rgba(34,211,238,.10), rgba(34,211,238,.02));
-    border:1px solid rgba(34,211,238,.35); color:var(--cyan);
-    padding:9px 14px; border-radius:10px; font-size:12.5px; font-weight:700;
-    letter-spacing:.3px; cursor:pointer; transition:.15s;
-  }
-  .btn-consolidada:hover{border-color:var(--cyan); background:rgba(34,211,238,.16); filter:brightness(1.08);}
-  .btn-consolidada .ico{font-size:15px; line-height:1;}
-  .btn-consolidada .lbl{white-space:nowrap;}
-  @media (max-width:420px){
-    .btn-consolidada .lbl{display:none;}
-    .btn-consolidada{padding:9px 11px;}
-  }
-
-  /* Overlay + Drawer FT Consolidada */
-  .drawer-overlay{
-    position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(2px);
-    z-index:65; display:none; opacity:0; transition:opacity .2s;
-  }
-  .drawer-overlay.open{display:block; opacity:1;}
-  .drawer-ft{
-    position:fixed; top:0; left:0; height:100vh; width:min(96vw, 900px);
-    background:var(--bg2); border-right:1px solid var(--border);
-    z-index:70; transform:translateX(-100%); transition:transform .25s ease;
-    display:flex; flex-direction:column; box-shadow:8px 0 30px rgba(0,0,0,.4);
-  }
-  .drawer-ft.open{transform:translateX(0);}
-  .drawer-head{
-    display:flex; align-items:center; justify-content:space-between;
-    padding:16px 18px; border-bottom:1px solid var(--border); flex-shrink:0; gap:10px; flex-wrap:wrap;
-  }
-  .drawer-head h2{font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px;}
-  .drawer-head h2 .drawer-ico{
-    width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center;
-    background:linear-gradient(135deg, rgba(34,211,238,.18), rgba(34,211,238,.04));
-    border:1px solid rgba(34,211,238,.3); font-size:14px; flex-shrink:0;
-  }
-  .drawer-head span{display:block; font-size:11px; color:var(--muted); font-weight:400; margin-top:2px;}
-  .drawer-head-top{display:flex; align-items:flex-start; justify-content:space-between; width:100%; gap:10px;}
-  .drawer-close{
-    background:none; border:1px solid var(--border); color:var(--muted);
-    width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:15px; flex-shrink:0;
-  }
-  .drawer-close:hover{color:var(--danger); border-color:var(--danger);}
-
-  .drawer-export{display:flex; gap:8px; width:100%;}
-  .btn-export{
-    flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
-    border:1px solid var(--border); background:var(--card); color:var(--text);
-    padding:8px 10px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; transition:.15s;
-  }
-  .btn-export:hover{filter:brightness(1.15);}
-  .btn-export.pdf{border-color:rgba(240,85,107,.35); color:#ff8fa0;}
-  .btn-export.pdf:hover{border-color:var(--danger); background:rgba(240,85,107,.08);}
-  .btn-export.xls{border-color:rgba(61,220,151,.35); color:var(--ok);}
-  .btn-export.xls:hover{border-color:var(--ok); background:rgba(61,220,151,.08);}
-
-  .consolidada-scroll{
-    flex:1; overflow:auto; padding:16px 18px;
-  }
-  .consolidada-list{
-    display:flex; flex-direction:column; gap:10px; overflow-x:auto; padding:6px 6px 14px;
-  }
-  .consolidada-card{
-    flex:0 0 auto; width:max-content; min-width:100%;
-    background:linear-gradient(100deg, var(--card) 0%, #101820 100%);
-    border:1px solid var(--border); border-radius:14px; padding:12px 18px;
-    display:flex; flex-direction:row; align-items:center; gap:18px; position:relative;
-    box-shadow:0 6px 16px rgba(0,0,0,.25); transition:.15s;
-  }
-  .consolidada-card:hover{border-color:rgba(34,211,238,.4);}
-  .consolidada-card.ultimo{
-    border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan) inset, 0 8px 22px rgba(34,211,238,.18);
-  }
-  .consolidada-card.ultimo::before{
-    content:'MAIS RECENTE'; position:absolute; top:-9px; left:18px;
-    background:var(--cyan); color:#00161b; font-size:9px; font-weight:800;
-    letter-spacing:.5px; padding:2px 8px; border-radius:20px;
-  }
-  .consolidada-actions{
-    display:flex; flex-direction:column; gap:6px; flex-shrink:0; width:96px;
-  }
-  .consolidada-actions button{
-    border:1px solid var(--border); background:var(--bg2); color:var(--muted);
-    border-radius:7px; padding:6px 0; font-size:11.5px; font-weight:600; cursor:pointer; transition:.15s;
-  }
-  .consolidada-actions .edit:hover{color:var(--cyan); border-color:var(--cyan); background:rgba(34,211,238,.08);}
-  .consolidada-actions .del:hover{color:var(--danger); border-color:var(--danger); background:rgba(240,85,107,.08);}
-  .c-divider{width:1px; align-self:stretch; background:var(--border); flex-shrink:0;}
-  .consolidada-card .c-info{display:flex; flex-direction:column; gap:2px; flex-shrink:0; min-width:150px;}
-  .consolidada-card .c-data{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:600;}
-  .consolidada-card .c-nome{font-size:13.5px; font-weight:700; color:var(--text); line-height:1.25; white-space:nowrap;}
-  .consolidada-card .c-contrato{font-size:11.5px; color:var(--muted); white-space:nowrap;}
-  .consolidada-card .c-motivo-wrap{flex-shrink:0;}
-  .consolidada-card .c-valores{
-    display:flex; flex-direction:column; gap:2px; align-items:flex-end; margin-left:auto; flex-shrink:0;
-  }
-  .consolidada-card .c-horario{font-size:11px; color:var(--muted); white-space:nowrap;}
-  .consolidada-card .c-valor{font-size:15px; font-weight:800; color:var(--ok); white-space:nowrap;}
-  .consolidada-empty{color:var(--muted); font-size:13px; padding:20px 0;}
-  .consolidada-hint{font-size:11px; color:var(--muted); margin-bottom:12px;}
-
-  @media (max-width:640px){
-    .consolidada-card{gap:12px; padding:12px;}
-    .consolidada-actions{width:78px;}
-    .consolidada-actions button{font-size:10.5px; padding:5px 0;}
-    .consolidada-card .c-info{min-width:120px;}
-    .consolidada-card .c-nome{font-size:12.5px;}
-  }
 </style>
 </head>
 <body>
 
-<div class="drawer-overlay" id="drawerOverlay"></div>
-<div class="drawer-ft" id="drawerFt">
-  <div class="drawer-head">
-    <div class="drawer-head-top">
-      <h2><span class="drawer-ico">📋</span><span>FT Consolidada<span>Histórico de lançamentos — do mais antigo ao mais recente</span></span></h2>
-      <button class="drawer-close" id="drawerClose" title="Fechar">✕</button>
-    </div>
-    <div class="drawer-export">
-      <button class="btn-export pdf" id="btnConsolidadaPdf">📄 PDF</button>
-      <button class="btn-export xls" id="btnConsolidadaXls">📊 Excel</button>
-    </div>
-  </div>
-  <div class="consolidada-scroll">
-    <div class="consolidada-hint">Do lançamento mais antigo (topo) ao mais recente (final, destacado). Role para baixo para ver o histórico completo.</div>
-    <div class="consolidada-list" id="consolidadaList">
-      <div class="consolidada-empty">Carregando lançamentos...</div>
-    </div>
-  </div>
-</div>
-
 <header>
-  <div class="header-left">
-    <button class="btn-consolidada" id="btnConsolidada" title="Abrir FT Consolidada">
-      <span class="ico">📋</span><span class="lbl">FT Consolidada</span>
-    </button>
-    <div class="brand">
-      <div class="logo-hex">
+  <div class="brand">
+    <div class="logo-hex">
       <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="hexGradPainel" x1="0" y1="0" x2="100" y2="110" gradientUnits="userSpaceOnUse">
@@ -297,7 +157,6 @@
     <div>
       <h1>Lançamentos — Grupo M.S<span>PJ Tecnologia e Sistemas</span></h1>
     </div>
-  </div>
   </div>
   <div id="syncStatus"><span id="syncDot"></span><span id="syncText">Conectando...</span></div>
 </header>
@@ -346,25 +205,11 @@
 
 <div class="modal-bg" id="modalBg">
   <div class="modal">
-    <h2 id="mTitulo">Novo lançamento manual</h2>
+    <h2>Novo lançamento manual</h2>
     <div class="field"><label>Data</label><input type="date" id="mData"></div>
     <div class="field"><label>Colaborador (FT)</label><input type="text" id="mColab" placeholder="Nome completo"></div>
     <div class="field"><label>Posto / Contrato</label><input type="text" id="mContrato" placeholder="Ex: Pantanal"></div>
-    <div class="field">
-      <label>Motivo</label>
-      <select id="mMotivo">
-        <option value="">Selecione...</option>
-        <option value="Extra">Extra</option>
-        <option value="Falta">Falta</option>
-        <option value="Cobertura">Cobertura</option>
-        <option value="Cobertura de Férias">Cobertura de Férias</option>
-        <option value="Bico Fixo">Bico Fixo</option>
-        <option value="Reforço">Reforço</option>
-        <option value="Plantão Extra">Plantão Extra</option>
-        <option value="Outro">Outro (digitar)</option>
-      </select>
-      <input type="text" id="mMotivoOutro" placeholder="Digite o motivo" style="display:none; margin-top:6px;">
-    </div>
+    <div class="field"><label>Motivo</label><input type="text" id="mMotivo" placeholder="Ex: Extra, Falta, Cobertura"></div>
     <div class="row">
       <div class="field" style="flex:1"><label>Horário</label><input type="text" id="mHorario" placeholder="18:00 as 06:00"></div>
       <div class="field" style="flex:1"><label>Valor R$</label><input type="text" id="mValor" placeholder="160,00"></div>
@@ -421,7 +266,6 @@ function escutarLancamentos(){
       allDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       popularFiltroMotivo();
       renderizar();
-      renderizarConsolidada();
       dot.className = 'on';
       syncText.textContent = 'Sincronizado';
     },
@@ -503,116 +347,6 @@ function excluir(id){
   }
 }
 
-// ======================================================
-// FT CONSOLIDADA — histórico horizontal (mais antigo -> mais recente)
-// ======================================================
-function renderizarConsolidada(){
-  const lista = document.getElementById('consolidadaList');
-  // allDocs vem ordenado desc (mais recente primeiro); invertemos para
-  // que o último lançamento fique sempre por último na lista (mais recente no final).
-  const ordenado = [...allDocs].reverse();
-
-  if(ordenado.length === 0){
-    lista.innerHTML = '<div class="consolidada-empty">Nenhum lançamento registrado ainda.</div>';
-    return;
-  }
-
-  lista.innerHTML = ordenado.map((d, i) => {
-    const ultimo = i === ordenado.length - 1;
-    return `
-      <div class="consolidada-card ${ultimo ? 'ultimo' : ''}">
-        <div class="consolidada-actions">
-          <button class="edit" onclick="editar('${d.id}')" title="Editar">✎ Editar</button>
-          <button class="del" onclick="excluir('${d.id}')" title="Excluir">✕ Apagar</button>
-        </div>
-        <div class="c-divider"></div>
-        <div class="c-info">
-          <div class="c-data">${d.data || '—'}</div>
-          <div class="c-nome">${d.colaborador || '—'}</div>
-          <div class="c-contrato">${d.contrato || '—'}</div>
-        </div>
-        <div class="c-motivo-wrap"><span class="motivo-tag">${d.motivo || '—'}</span></div>
-        <div class="c-valores">
-          <span class="c-horario">${d.horario || '—'}</span>
-          <span class="c-valor">${d.valor ? 'R$ ' + d.valor : '—'}</span>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  // rola até o final da lista, onde fica o último lançamento
-  const scrollArea = document.querySelector('.consolidada-scroll');
-  if(scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
-}
-
-const btnConsolidada = document.getElementById('btnConsolidada');
-const drawerFt = document.getElementById('drawerFt');
-const drawerOverlay = document.getElementById('drawerOverlay');
-const drawerClose = document.getElementById('drawerClose');
-
-function abrirConsolidada(){
-  drawerFt.classList.add('open');
-  drawerOverlay.classList.add('open');
-  renderizarConsolidada();
-}
-function fecharConsolidada(){
-  drawerFt.classList.remove('open');
-  drawerOverlay.classList.remove('open');
-}
-btnConsolidada.addEventListener('click', abrirConsolidada);
-drawerClose.addEventListener('click', fecharConsolidada);
-drawerOverlay.addEventListener('click', fecharConsolidada);
-document.addEventListener('keydown', e => { if(e.key === 'Escape') fecharConsolidada(); });
-
-// ---- Exportação PDF ----
-document.getElementById('btnConsolidadaPdf').addEventListener('click', () => {
-  const ordenado = [...allDocs].reverse();
-  if(ordenado.length === 0){ alert('Nenhum lançamento para exportar.'); return; }
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape' });
-
-  doc.setFontSize(14);
-  doc.text('FT Consolidada — Grupo M.S', 14, 16);
-  doc.setFontSize(9);
-  doc.text('PJ Tecnologia e Sistemas — gerado em ' + new Date().toLocaleString('pt-BR'), 14, 22);
-
-  doc.autoTable({
-    startY: 28,
-    head: [['Data', 'Colaborador (FT)', 'Posto/Contrato', 'Motivo', 'Horário', 'Valor']],
-    body: ordenado.map(d => [
-      d.data || '—', d.colaborador || '—', d.contrato || '—',
-      d.motivo || '—', d.horario || '—', d.valor ? 'R$ ' + d.valor : '—'
-    ]),
-    styles: { fontSize: 8.5, cellPadding: 3 },
-    headStyles: { fillColor: [20, 28, 39], textColor: 255 },
-    alternateRowStyles: { fillColor: [245, 248, 250] }
-  });
-
-  doc.save(`ft_consolidada_${new Date().toISOString().slice(0,10)}.pdf`);
-});
-
-// ---- Exportação Excel ----
-document.getElementById('btnConsolidadaXls').addEventListener('click', () => {
-  const ordenado = [...allDocs].reverse();
-  if(ordenado.length === 0){ alert('Nenhum lançamento para exportar.'); return; }
-
-  const linhas = ordenado.map(d => ({
-    'Data': d.data || '',
-    'Colaborador (FT)': d.colaborador || '',
-    'Posto/Contrato': d.contrato || '',
-    'Motivo': d.motivo || '',
-    'Horário': d.horario || '',
-    'Valor': d.valor || ''
-  }));
-
-  const ws = XLSX.utils.json_to_sheet(linhas);
-  ws['!cols'] = [{wch:12},{wch:26},{wch:20},{wch:16},{wch:18},{wch:12}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'FT Consolidada');
-  XLSX.writeFile(wb, `ft_consolidada_${new Date().toISOString().slice(0,10)}.xlsx`);
-});
-
 ['fBusca','fDataIni','fDataFim','fMotivo'].forEach(id => {
   document.getElementById(id).addEventListener('input', renderizar);
   document.getElementById(id).addEventListener('change', renderizar);
@@ -640,70 +374,19 @@ document.getElementById('btnExport').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// Modal manual (criação e edição)
+// Modal manual
 const modalBg = document.getElementById('modalBg');
-const mTitulo = document.getElementById('mTitulo');
-const mSalvarBtn = document.getElementById('mSalvar');
-const mMotivoSel = document.getElementById('mMotivo');
-const mMotivoOutro = document.getElementById('mMotivoOutro');
-let editingId = null;
-
-mMotivoSel.addEventListener('change', () => {
-  const isOutro = mMotivoSel.value === 'Outro';
-  mMotivoOutro.style.display = isOutro ? 'block' : 'none';
-  if(!isOutro) mMotivoOutro.value = '';
-});
-
-function setMotivoNoModal(valorSalvo){
-  const opcoesPadrao = Array.from(mMotivoSel.options).map(o => o.value).filter(v => v && v !== 'Outro');
-  if(!valorSalvo){
-    mMotivoSel.value = '';
-    mMotivoOutro.style.display = 'none';
-    mMotivoOutro.value = '';
-  } else if(opcoesPadrao.includes(valorSalvo)){
-    mMotivoSel.value = valorSalvo;
-    mMotivoOutro.style.display = 'none';
-    mMotivoOutro.value = '';
-  } else {
-    mMotivoSel.value = 'Outro';
-    mMotivoOutro.style.display = 'block';
-    mMotivoOutro.value = valorSalvo;
-  }
-}
-
-function abrirModalNovo(){
-  editingId = null;
-  mTitulo.textContent = 'Novo lançamento manual';
-  mSalvarBtn.textContent = 'Salvar';
+document.getElementById('btnNovo').addEventListener('click', () => {
   document.getElementById('mData').value = new Date().toISOString().slice(0,10);
-  ['mColab','mContrato','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
-  setMotivoNoModal('');
   modalBg.classList.add('open');
-}
-
-function editar(id){
-  const d = allDocs.find(x => x.id === id);
-  if(!d) return;
-  editingId = id;
-  mTitulo.textContent = 'Editar lançamento';
-  mSalvarBtn.textContent = 'Salvar alterações';
-  document.getElementById('mData').value = d.dataISO || '';
-  document.getElementById('mColab').value = d.colaborador || '';
-  document.getElementById('mContrato').value = d.contrato || '';
-  setMotivoNoModal(d.motivo || '');
-  document.getElementById('mHorario').value = d.horario || '';
-  document.getElementById('mValor').value = d.valor || '';
-  modalBg.classList.add('open');
-}
-
-document.getElementById('btnNovo').addEventListener('click', abrirModalNovo);
+});
 document.getElementById('mCancelar').addEventListener('click', () => modalBg.classList.remove('open'));
 
-mSalvarBtn.addEventListener('click', async () => {
+document.getElementById('mSalvar').addEventListener('click', async () => {
   const dataISO = document.getElementById('mData').value;
   const colaborador = document.getElementById('mColab').value.trim();
   const contrato = document.getElementById('mContrato').value.trim();
-  const motivo = mMotivoSel.value === 'Outro' ? mMotivoOutro.value.trim() : mMotivoSel.value;
+  const motivo = document.getElementById('mMotivo').value.trim();
   const horario = document.getElementById('mHorario').value.trim();
   const valor = document.getElementById('mValor').value.trim();
 
@@ -713,25 +396,15 @@ mSalvarBtn.addEventListener('click', async () => {
   }
 
   const [ano, mes, dia] = dataISO.split('-');
-  const dados = {
+  await db.collection(COLLECTION).add({
     dataISO, data: `${dia}/${mes}/${ano}`,
-    colaborador, contrato, motivo, horario, valor
-  };
+    colaborador, contrato, motivo, horario, valor,
+    origem: 'manual',
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  });
 
-  if(editingId){
-    await db.collection(COLLECTION).doc(editingId).update(dados);
-  } else {
-    await db.collection(COLLECTION).add({
-      ...dados,
-      origem: 'manual',
-      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  }
-
-  editingId = null;
   modalBg.classList.remove('open');
-  ['mColab','mContrato','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
-  setMotivoNoModal('');
+  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
 });
 
 modalBg.addEventListener('click', e => { if(e.target === modalBg) modalBg.classList.remove('open'); });
