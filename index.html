@@ -112,7 +112,7 @@
   /* Modal de lançamento manual */
   .modal-bg{
     position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
-    align-items:center; justify-content:center; z-index:50; padding:16px; backdrop-filter:blur(3px);
+    align-items:center; justify-content:center; z-index:90; padding:16px; backdrop-filter:blur(3px);
   }
   .modal-bg.open{display:flex;}
   .modal{
@@ -193,49 +193,53 @@
     flex:1; overflow:auto; padding:16px 18px;
   }
   .consolidada-list{
-    display:flex; flex-direction:row; gap:12px; overflow-x:auto; padding:4px 4px 14px;
-    scroll-snap-type:x proximity;
+    display:flex; flex-direction:column; gap:10px; overflow-x:auto; padding:6px 6px 14px;
   }
   .consolidada-card{
-    flex:0 0 auto; width:226px; scroll-snap-align:start;
-    background:linear-gradient(160deg, var(--card) 0%, #101820 100%);
-    border:1px solid var(--border); border-radius:14px; padding:14px;
-    display:flex; flex-direction:column; gap:7px; position:relative;
+    flex:0 0 auto; width:max-content; min-width:100%;
+    background:linear-gradient(100deg, var(--card) 0%, #101820 100%);
+    border:1px solid var(--border); border-radius:14px; padding:12px 18px;
+    display:flex; flex-direction:row; align-items:center; gap:18px; position:relative;
     box-shadow:0 6px 16px rgba(0,0,0,.25); transition:.15s;
   }
-  .consolidada-card:hover{border-color:rgba(34,211,238,.4); transform:translateY(-2px);}
+  .consolidada-card:hover{border-color:rgba(34,211,238,.4);}
   .consolidada-card.ultimo{
     border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan) inset, 0 8px 22px rgba(34,211,238,.18);
   }
   .consolidada-card.ultimo::before{
-    content:'MAIS RECENTE'; position:absolute; top:-9px; right:12px;
+    content:'MAIS RECENTE'; position:absolute; top:-9px; left:18px;
     background:var(--cyan); color:#00161b; font-size:9px; font-weight:800;
     letter-spacing:.5px; padding:2px 8px; border-radius:20px;
   }
   .consolidada-actions{
-    display:flex; gap:6px; order:-1; margin-bottom:2px;
+    display:flex; flex-direction:column; gap:6px; flex-shrink:0; width:96px;
   }
   .consolidada-actions button{
-    flex:1; border:1px solid var(--border); background:var(--bg2); color:var(--muted);
+    border:1px solid var(--border); background:var(--bg2); color:var(--muted);
     border-radius:7px; padding:6px 0; font-size:11.5px; font-weight:600; cursor:pointer; transition:.15s;
   }
   .consolidada-actions .edit:hover{color:var(--cyan); border-color:var(--cyan); background:rgba(34,211,238,.08);}
   .consolidada-actions .del:hover{color:var(--danger); border-color:var(--danger); background:rgba(240,85,107,.08);}
+  .c-divider{width:1px; align-self:stretch; background:var(--border); flex-shrink:0;}
+  .consolidada-card .c-info{display:flex; flex-direction:column; gap:2px; flex-shrink:0; min-width:150px;}
   .consolidada-card .c-data{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:600;}
-  .consolidada-card .c-nome{font-size:13.5px; font-weight:700; color:var(--text); line-height:1.25;}
-  .consolidada-card .c-contrato{font-size:11.5px; color:var(--muted);}
-  .consolidada-card .c-motivo{align-self:flex-start;}
-  .consolidada-card .c-rodape{
-    display:flex; justify-content:space-between; align-items:center; margin-top:4px;
-    padding-top:8px; border-top:1px dashed var(--border);
+  .consolidada-card .c-nome{font-size:13.5px; font-weight:700; color:var(--text); line-height:1.25; white-space:nowrap;}
+  .consolidada-card .c-contrato{font-size:11.5px; color:var(--muted); white-space:nowrap;}
+  .consolidada-card .c-motivo-wrap{flex-shrink:0;}
+  .consolidada-card .c-valores{
+    display:flex; flex-direction:column; gap:2px; align-items:flex-end; margin-left:auto; flex-shrink:0;
   }
-  .consolidada-card .c-horario{font-size:11px; color:var(--muted);}
-  .consolidada-card .c-valor{font-size:14px; font-weight:800; color:var(--ok);}
+  .consolidada-card .c-horario{font-size:11px; color:var(--muted); white-space:nowrap;}
+  .consolidada-card .c-valor{font-size:15px; font-weight:800; color:var(--ok); white-space:nowrap;}
   .consolidada-empty{color:var(--muted); font-size:13px; padding:20px 0;}
   .consolidada-hint{font-size:11px; color:var(--muted); margin-bottom:12px;}
 
   @media (max-width:640px){
-    .consolidada-card{width:190px;}
+    .consolidada-card{gap:12px; padding:12px;}
+    .consolidada-actions{width:78px;}
+    .consolidada-actions button{font-size:10.5px; padding:5px 0;}
+    .consolidada-card .c-info{min-width:120px;}
+    .consolidada-card .c-nome{font-size:12.5px;}
   }
 </style>
 </head>
@@ -254,7 +258,7 @@
     </div>
   </div>
   <div class="consolidada-scroll">
-    <div class="consolidada-hint">Arraste para o lado para ver todo o histórico. O último lançamento fica sempre por último (destacado).</div>
+    <div class="consolidada-hint">Do lançamento mais antigo (topo) ao mais recente (final, destacado). Role para baixo para ver o histórico completo.</div>
     <div class="consolidada-list" id="consolidadaList">
       <div class="consolidada-empty">Carregando lançamentos...</div>
     </div>
@@ -346,7 +350,21 @@
     <div class="field"><label>Data</label><input type="date" id="mData"></div>
     <div class="field"><label>Colaborador (FT)</label><input type="text" id="mColab" placeholder="Nome completo"></div>
     <div class="field"><label>Posto / Contrato</label><input type="text" id="mContrato" placeholder="Ex: Pantanal"></div>
-    <div class="field"><label>Motivo</label><input type="text" id="mMotivo" placeholder="Ex: Extra, Falta, Cobertura"></div>
+    <div class="field">
+      <label>Motivo</label>
+      <select id="mMotivo">
+        <option value="">Selecione...</option>
+        <option value="Extra">Extra</option>
+        <option value="Falta">Falta</option>
+        <option value="Cobertura">Cobertura</option>
+        <option value="Cobertura de Férias">Cobertura de Férias</option>
+        <option value="Bico Fixo">Bico Fixo</option>
+        <option value="Reforço">Reforço</option>
+        <option value="Plantão Extra">Plantão Extra</option>
+        <option value="Outro">Outro (digitar)</option>
+      </select>
+      <input type="text" id="mMotivoOutro" placeholder="Digite o motivo" style="display:none; margin-top:6px;">
+    </div>
     <div class="row">
       <div class="field" style="flex:1"><label>Horário</label><input type="text" id="mHorario" placeholder="18:00 as 06:00"></div>
       <div class="field" style="flex:1"><label>Valor R$</label><input type="text" id="mValor" placeholder="160,00"></div>
@@ -491,7 +509,7 @@ function excluir(id){
 function renderizarConsolidada(){
   const lista = document.getElementById('consolidadaList');
   // allDocs vem ordenado desc (mais recente primeiro); invertemos para
-  // que o último lançamento fique sempre por último na lista horizontal.
+  // que o último lançamento fique sempre por último na lista (mais recente no final).
   const ordenado = [...allDocs].reverse();
 
   if(ordenado.length === 0){
@@ -507,11 +525,14 @@ function renderizarConsolidada(){
           <button class="edit" onclick="editar('${d.id}')" title="Editar">✎ Editar</button>
           <button class="del" onclick="excluir('${d.id}')" title="Excluir">✕ Apagar</button>
         </div>
-        <div class="c-data">${d.data || '—'}</div>
-        <div class="c-nome">${d.colaborador || '—'}</div>
-        <div class="c-contrato">${d.contrato || '—'}</div>
-        <span class="motivo-tag c-motivo">${d.motivo || '—'}</span>
-        <div class="c-rodape">
+        <div class="c-divider"></div>
+        <div class="c-info">
+          <div class="c-data">${d.data || '—'}</div>
+          <div class="c-nome">${d.colaborador || '—'}</div>
+          <div class="c-contrato">${d.contrato || '—'}</div>
+        </div>
+        <div class="c-motivo-wrap"><span class="motivo-tag">${d.motivo || '—'}</span></div>
+        <div class="c-valores">
           <span class="c-horario">${d.horario || '—'}</span>
           <span class="c-valor">${d.valor ? 'R$ ' + d.valor : '—'}</span>
         </div>
@@ -519,8 +540,9 @@ function renderizarConsolidada(){
     `;
   }).join('');
 
-  // rola para o final, onde fica o último lançamento
-  lista.scrollLeft = lista.scrollWidth;
+  // rola até o final da lista, onde fica o último lançamento
+  const scrollArea = document.querySelector('.consolidada-scroll');
+  if(scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
 }
 
 const btnConsolidada = document.getElementById('btnConsolidada');
@@ -622,14 +644,40 @@ document.getElementById('btnExport').addEventListener('click', () => {
 const modalBg = document.getElementById('modalBg');
 const mTitulo = document.getElementById('mTitulo');
 const mSalvarBtn = document.getElementById('mSalvar');
+const mMotivoSel = document.getElementById('mMotivo');
+const mMotivoOutro = document.getElementById('mMotivoOutro');
 let editingId = null;
+
+mMotivoSel.addEventListener('change', () => {
+  const isOutro = mMotivoSel.value === 'Outro';
+  mMotivoOutro.style.display = isOutro ? 'block' : 'none';
+  if(!isOutro) mMotivoOutro.value = '';
+});
+
+function setMotivoNoModal(valorSalvo){
+  const opcoesPadrao = Array.from(mMotivoSel.options).map(o => o.value).filter(v => v && v !== 'Outro');
+  if(!valorSalvo){
+    mMotivoSel.value = '';
+    mMotivoOutro.style.display = 'none';
+    mMotivoOutro.value = '';
+  } else if(opcoesPadrao.includes(valorSalvo)){
+    mMotivoSel.value = valorSalvo;
+    mMotivoOutro.style.display = 'none';
+    mMotivoOutro.value = '';
+  } else {
+    mMotivoSel.value = 'Outro';
+    mMotivoOutro.style.display = 'block';
+    mMotivoOutro.value = valorSalvo;
+  }
+}
 
 function abrirModalNovo(){
   editingId = null;
   mTitulo.textContent = 'Novo lançamento manual';
   mSalvarBtn.textContent = 'Salvar';
   document.getElementById('mData').value = new Date().toISOString().slice(0,10);
-  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
+  ['mColab','mContrato','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
+  setMotivoNoModal('');
   modalBg.classList.add('open');
 }
 
@@ -642,7 +690,7 @@ function editar(id){
   document.getElementById('mData').value = d.dataISO || '';
   document.getElementById('mColab').value = d.colaborador || '';
   document.getElementById('mContrato').value = d.contrato || '';
-  document.getElementById('mMotivo').value = d.motivo || '';
+  setMotivoNoModal(d.motivo || '');
   document.getElementById('mHorario').value = d.horario || '';
   document.getElementById('mValor').value = d.valor || '';
   modalBg.classList.add('open');
@@ -655,7 +703,7 @@ mSalvarBtn.addEventListener('click', async () => {
   const dataISO = document.getElementById('mData').value;
   const colaborador = document.getElementById('mColab').value.trim();
   const contrato = document.getElementById('mContrato').value.trim();
-  const motivo = document.getElementById('mMotivo').value.trim();
+  const motivo = mMotivoSel.value === 'Outro' ? mMotivoOutro.value.trim() : mMotivoSel.value;
   const horario = document.getElementById('mHorario').value.trim();
   const valor = document.getElementById('mValor').value.trim();
 
@@ -682,7 +730,8 @@ mSalvarBtn.addEventListener('click', async () => {
 
   editingId = null;
   modalBg.classList.remove('open');
-  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
+  ['mColab','mContrato','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
+  setMotivoNoModal('');
 });
 
 modalBg.addEventListener('click', e => { if(e.target === modalBg) modalBg.classList.remove('open'); });
