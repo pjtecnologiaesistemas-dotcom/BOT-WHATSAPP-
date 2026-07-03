@@ -23,7 +23,7 @@
  * funciona em GitHub Pages/Netlify pois precisa ficar 24/7 ativo):
  *
  *   npm init -y
- *   npm install @whiskeysockets/baileys firebase-admin qrcode-terminal pino @anthropic-ai/sdk
+ *   npm install @whiskeysockets/baileys@6.7.22 firebase-admin qrcode-terminal pino @anthropic-ai/sdk
  *
  * Depois (SEM precisar de arquivo .json no repositório - tudo via
  * variável de ambiente, então pode usar repositório PÚBLICO):
@@ -43,6 +43,11 @@
  *      (não um QR Code). No celular do número dedicado: WhatsApp >
  *      Configurações > Aparelhos conectados > Conectar um aparelho >
  *      "Conectar com número de telefone" > digita esse código.
+ *      IMPORTANTE: digite rápido, o código expira em ~60 segundos.
+ *   8. Se já tentou parear antes e deu erro, apague a pasta/volume
+ *      "auth_info" no Railway antes de gerar um novo código — uma
+ *      sessão antiga corrompida também causa "Não foi possível
+ *      conectar o dispositivo".
  * ---------------------------------------------------------------
  */
 
@@ -58,7 +63,8 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  Browsers
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
@@ -208,28 +214,37 @@ async function iniciar() {
     auth: state,
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: ['Ubuntu', 'Chrome', '20.0.04'],
+    // Fingerprint reconhecido pelo WhatsApp. O array manual antigo
+    // (['Ubuntu','Chrome','20.0.04']) vinha causando rejeição do
+    // código de pareamento ("Não foi possível conectar o dispositivo")
+    // porque a versão de navegador inventada não bate com nada real.
+    browser: Browsers.ubuntu('Chrome'),
     version
   });
 
-  if (usarPairingCode) {
-    // Espera meio segundo pro socket inicializar antes de pedir o código
-    setTimeout(async () => {
+  let pairingSolicitado = false;
+
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    // Pede o código só quando o socket já está em "connecting" (ou já
+    // emitiu qr) — pedir cedo demais (ex: logo após makeWASocket) é
+    // uma das causas do código ser gerado mas recusado no celular.
+    if (usarPairingCode && !pairingSolicitado && (connection === 'connecting' || qr)) {
+      pairingSolicitado = true;
       try {
         const codigo = await sock.requestPairingCode(process.env.PAIRING_PHONE);
         console.log('==================================================');
         console.log(`🔑 CÓDIGO DE PAREAMENTO: ${codigo}`);
+        console.log('⏱️  Digite AGORA no celular — o código expira em ~60s.');
         console.log('No celular do bot: WhatsApp > Aparelhos conectados >');
         console.log('Conectar um aparelho > Conectar com número de telefone');
         console.log('==================================================');
       } catch (e) {
         console.log('Erro ao gerar código de pareamento:', e.message);
       }
-    }, 3000);
-  }
+    }
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update;
     if (qr && !usarPairingCode) {
       console.log('📱 Escaneie o QR Code abaixo com o WhatsApp do número do bot:');
       qrcode.generate(qr, { small: true });
