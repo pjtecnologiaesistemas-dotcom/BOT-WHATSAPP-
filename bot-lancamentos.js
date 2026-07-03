@@ -158,7 +158,8 @@ async function iniciar() {
   const sock = makeWASocket({
     auth: state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: false
+    printQRInTerminal: false,
+    browser: ['PJ Tecnologia', 'Chrome', '110.0.0']
   });
 
   sock.ev.on('connection.update', (update) => {
@@ -168,9 +169,12 @@ async function iniciar() {
       qrcode.generate(qr, { small: true });
     }
     if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log('Conexão encerrada. Reconectar?', shouldReconnect);
-      if (shouldReconnect) iniciar();
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      console.log(`Conexão encerrada. Código: ${statusCode}. Motivo: ${lastDisconnect?.error?.message || 'desconhecido'}. Reconectar? ${shouldReconnect}`);
+      if (shouldReconnect) {
+        setTimeout(() => iniciar(), 5000); // espera 5s antes de tentar de novo
+      }
     } else if (connection === 'open') {
       console.log('✅ Bot conectado ao WhatsApp.');
     }
