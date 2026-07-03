@@ -174,7 +174,7 @@ async function iniciar() {
     auth: state,
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: ['PJ Tecnologia', 'Chrome', '110.0.0'],
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
     version
   });
 
@@ -191,7 +191,7 @@ async function iniciar() {
       } catch (e) {
         console.log('Erro ao gerar código de pareamento:', e.message);
       }
-    }, 500);
+    }, 3000);
   }
 
   sock.ev.on('connection.update', (update) => {
