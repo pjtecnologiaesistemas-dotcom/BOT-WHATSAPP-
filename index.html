@@ -601,16 +601,21 @@ let editandoId = null;
 
 // ======================================================
 // CARREGADOR DE BIBLIOTECAS (jsPDF / AutoTable / SheetJS)
-// Ordem de prioridade, pra funcionar em QUALQUER situação:
+// Ordem de prioridade:
 //   1) Arquivo local na pasta /libs (junto do site) — funciona
 //      offline desde a primeira abertura, sem depender de nada.
-//   2) Cache do navegador (Cache Storage) — se já foi baixado
-//      da internet em uma visita anterior.
-//   3) CDN (internet) — só usado se as duas opções acima
-//      falharem, e já guarda em cache pra próxima vez.
+//   2) CDN (internet) — usado se a pasta /libs ainda não existir
+//      ou o arquivo local não carregar.
 //
-// Para ativar o modo 100% offline (opção 1), baixe estes 3
-// arquivos e coloque numa pasta "libs" ao lado deste HTML:
+// Carrega via tag <script src="..."> de verdade (não fetch+eval),
+// porque isso é o jeito mais confiável: o navegador executa o script
+// direto, sem depender de CORS na leitura do conteúdo — algumas redes
+// (proxy corporativo, operadora de celular etc.) bloqueiam ou alteram
+// a resposta de um fetch() cross-origin, mas deixam o <script> normal
+// carregar e rodar sem problema, que é como qualquer CDN é usado.
+//
+// Para ativar o modo 100% offline, baixe estes 3 arquivos e coloque
+// numa pasta "libs" ao lado deste HTML:
 //   libs/jspdf.umd.min.js
 //     -> https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js
 //   libs/jspdf.plugin.autotable.min.js
@@ -620,51 +625,33 @@ let editandoId = null;
 // Sem essa pasta, o app continua funcionando normalmente,
 // só que a 1ª vez que usar Excel/PDF vai precisar de internet.
 // ======================================================
-const LIB_CACHE = 'pj-export-libs-v1';
 const EXPORT_LIBS = {
   xlsx:      { local: 'libs/xlsx.full.min.js',                  cdn: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js' },
   jspdf:     { local: 'libs/jspdf.umd.min.js',                  cdn: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' },
   autotable: { local: 'libs/jspdf.plugin.autotable.min.js',     cdn: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js' }
 };
+const libPromises = {};
 
-async function carregarBiblioteca(chave){
-  if(document.querySelector(`script[data-lib-key="${chave}"]`)) return; // já injetado
+function carregarScript(src){
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => { script.remove(); reject(new Error('Falha ao carregar: ' + src)); };
+    document.head.appendChild(script);
+  });
+}
+
+function carregarBiblioteca(chave){
+  if(libPromises[chave]) return libPromises[chave]; // já carregada ou carregando
 
   const info = EXPORT_LIBS[chave];
-  let codigo = null;
-
-  // 1) arquivo local embutido no site (o melhor caso: sempre funciona, mesmo offline)
-  try{
-    const respLocal = await fetch(info.local, {cache:'force-cache'});
-    if(respLocal.ok) codigo = await respLocal.text();
-  }catch(e){ /* pasta libs/ não existe ainda — segue pro próximo passo */ }
-
-  // 2) cache do navegador (baixado da internet numa visita anterior)
-  if(!codigo && 'caches' in window){
-    try{
-      const cache = await caches.open(LIB_CACHE);
-      const resp = await cache.match(info.cdn);
-      if(resp) codigo = await resp.text();
-    }catch(e){ /* segue pro próximo passo */ }
-  }
-
-  // 3) última opção: internet (e já guarda em cache pra próxima vez)
-  if(!codigo){
-    const resp = await fetch(info.cdn);
-    if(!resp.ok) throw new Error('Não foi possível carregar a biblioteca: ' + chave);
-    codigo = await resp.text();
-    if('caches' in window){
-      try{
-        const cache = await caches.open(LIB_CACHE);
-        await cache.put(info.cdn, new Response(codigo, {headers:{'Content-Type':'application/javascript'}}));
-      }catch(e){ /* sem espaço/permissão, tudo bem, só não guarda pra próxima vez */ }
-    }
-  }
-
-  const script = document.createElement('script');
-  script.textContent = codigo;
-  script.setAttribute('data-lib-key', chave);
-  document.head.appendChild(script);
+  libPromises[chave] = carregarScript(info.local).catch(() => carregarScript(info.cdn));
+  return libPromises[chave].catch(err => {
+    delete libPromises[chave]; // permite tentar de novo numa próxima chamada
+    throw err;
+  });
 }
 
 async function garantirExcelLib(){
@@ -676,13 +663,13 @@ async function garantirPdfLib(){
   if(!window.jspdf){
     await carregarBiblioteca('jspdf');
   }
-  if(!(window.jspdf && window.jspdf.jsPDF.API.autoTable)){
+  if(!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable)){
     await carregarBiblioteca('autotable');
   }
 }
 
 // Pré-carrega em segundo plano (sem travar a tela) assim que a página abre,
-// pra já deixar tudo pronto (local, cache ou internet) antes de precisar exportar.
+// pra já deixar tudo pronto antes de precisar exportar.
 window.addEventListener('load', () => {
   setTimeout(() => {
     Object.keys(EXPORT_LIBS).forEach(chave => {
@@ -705,10 +692,37 @@ auth.onAuthStateChanged(user => {
   }
 });
 
+function timestampMillis(ts){
+  if(ts && typeof ts.toMillis === 'function') return ts.toMillis();
+  if(ts && typeof ts.seconds === 'number') return ts.seconds * 1000;
+  return 0;
+}
+
+// Ordena sempre do lançamento mais recente para o mais antigo.
+// Critério principal: data/hora de criação no Firestore (criadoEm).
+// Critério de desempate/fallback: data + horário informados no lançamento —
+// assim, um lançamento sem criadoEm (ex: importado, ou registro antigo)
+// ainda entra na ordenação certa em vez de sumir ou ficar em posição aleatória.
+function ordenarMaisRecentes(lista){
+  return [...lista].sort((a, b) => {
+    const ta = timestampMillis(a.criadoEm);
+    const tb = timestampMillis(b.criadoEm);
+    if(tb !== ta) return tb - ta;
+    const chaveA = `${a.dataISO || ''} ${a.horario || ''}`;
+    const chaveB = `${b.dataISO || ''} ${b.horario || ''}`;
+    return chaveB.localeCompare(chaveA);
+  });
+}
+
 function escutarLancamentos(){
-  db.collection(COLLECTION).orderBy('criadoEm', 'desc').onSnapshot(
+  // Importante: sem .orderBy('criadoEm') aqui — o Firestore EXCLUI da consulta
+  // qualquer documento que não tenha esse campo preenchido (ex: lançamentos
+  // vindos do bot em algum momento sem o timestamp certinho). Buscando tudo
+  // sem orderBy e ordenando no navegador, nenhum lançamento fica de fora e a
+  // ordem "mais recente primeiro" é sempre garantida.
+  db.collection(COLLECTION).onSnapshot(
     snap => {
-      allDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      allDocs = ordenarMaisRecentes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       popularFiltroMotivo();
       renderizar();
       renderHistorico();
