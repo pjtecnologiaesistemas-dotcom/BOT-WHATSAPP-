@@ -272,7 +272,7 @@
     .btn-row{width:100%;}
     .btn-row .btn{flex:1; justify-content:center;}
 
-    table, thead, tbody, th, td, tr{display:block; width:100%;}
+    table, thead, tbody, th, td, tr{display:block; width:100%; min-width:0;}
     thead{display:none;}
     tbody tr{
       background:var(--surface2); border:1px solid var(--border); border-radius:14px;
@@ -303,6 +303,8 @@
     }
     tbody tr td:last-of-type{border-bottom:none;}
     tbody tr:last-child{margin-bottom:20px;}
+
+    .hist-count{padding:13px 14px 0; font-size:11px;}
 
     td.cell-actions{
       display:flex; justify-content:flex-end; padding:10px 0 12px; border-bottom:none; margin-top:2px;
