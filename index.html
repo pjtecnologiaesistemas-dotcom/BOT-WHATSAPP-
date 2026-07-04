@@ -4,215 +4,346 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PJ Tecnologia — Lançamentos</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
   :root{
-    --bg:#0a0e14; --bg2:#101720; --card:#141c27; --border:#1f2b38;
-    --cyan:#22d3ee; --amber:#f5a524; --text:#e6edf3; --muted:#7c8b9c;
-    --danger:#f0556b; --ok:#3ddc97;
+    --void:#060a12; --navy:#0d1b2a; --surface:#121f30; --surface2:#16273a;
+    --border:#22334a; --border-soft:rgba(255,255,255,.06);
+    --amber:#f2b705; --cyan:#00e5ff; --violet:#a06bff;
+    --text:#eaf1fb; --muted:#7c8ba3; --danger:#ff5577; --ok:#34d399;
+    --radius:16px;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
   body{
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    background:radial-gradient(1200px 600px at 80% -10%, #0f2733 0%, var(--bg) 55%);
-    color:var(--text); min-height:100vh; padding:16px;
+    font-family:'Rajdhani',-apple-system,sans-serif;
+    background:
+      radial-gradient(900px 500px at 88% -8%, rgba(160,107,255,.16) 0%, transparent 60%),
+      radial-gradient(800px 480px at 6% 8%, rgba(0,229,255,.10) 0%, transparent 55%),
+      radial-gradient(1000px 700px at 50% 110%, rgba(242,183,5,.08) 0%, transparent 55%),
+      var(--void);
+    color:var(--text); min-height:100vh; padding-bottom:40px;
   }
-  header{
-    display:flex; align-items:center; justify-content:space-between;
-    margin-bottom:18px; flex-wrap:wrap; gap:10px;
+  ::selection{background:var(--amber); color:#0a0e14;}
+  :focus-visible{outline:2px solid var(--cyan); outline-offset:2px; border-radius:6px;}
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important;}
   }
-  .brand{display:flex; align-items:center; gap:12px;}
-  .logo-hex{
-    position:relative; width:42px; height:46px;
-    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+
+  /* ---------- TOPBAR ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:40;
+    background:rgba(6,10,18,.72); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--border-soft);
   }
-  .logo-hex svg{
-    position:absolute; inset:0; width:100%; height:100%;
-    filter:drop-shadow(0 0 8px rgba(0,200,248,.45));
+  .topbar-inner{
+    max-width:1180px; margin:0 auto; padding:14px 20px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
   }
-  .logo-hex .monogram{
-    position:relative; z-index:2; display:flex; flex-direction:column;
-    align-items:center; line-height:.78; margin-top:1px;
-  }
-  .logo-hex .monogram .ltP{
-    font-family:'Orbitron', sans-serif; font-weight:900; font-size:1.05rem;
-    letter-spacing:-1px; color:#eef4ff; text-shadow:0 0 10px rgba(0,234,255,.6);
-  }
-  .logo-hex .monogram .ltJ{
-    font-family:'Orbitron', sans-serif; font-weight:900; font-size:.72rem;
-    letter-spacing:-1px; color:#00eaff; text-shadow:0 0 10px rgba(0,234,255,.75);
-    margin-top:-1px; margin-left:9px;
-  }
-  .brand h1{font-size:16px; font-weight:700; letter-spacing:.3px; margin-top:3px;}
-  .brand span{display:block; font-size:11px; color:var(--muted); font-weight:400;}
+  .brand{display:flex; align-items:center; gap:13px;}
+  .logo-hex{position:relative; width:44px; height:48px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .logo-hex svg{position:absolute; inset:0; width:100%; height:100%; filter:drop-shadow(0 0 10px rgba(0,229,255,.5));}
+  .logo-hex .monogram{position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; line-height:.78; margin-top:1px;}
+  .logo-hex .ltP{font-family:'Orbitron',sans-serif; font-weight:900; font-size:1.08rem; letter-spacing:-1px; color:#f3f8ff; text-shadow:0 0 10px rgba(0,229,255,.65);}
+  .logo-hex .ltJ{font-family:'Orbitron',sans-serif; font-weight:900; font-size:.74rem; letter-spacing:-1px; color:var(--amber); text-shadow:0 0 10px rgba(242,183,5,.7); margin-top:-1px; margin-left:9px;}
+  .brand-text h1{font-family:'Orbitron',sans-serif; font-size:15px; font-weight:700; letter-spacing:.3px;}
+  .brand-text span{display:block; font-size:11.5px; color:var(--muted); font-weight:600; letter-spacing:.3px; margin-top:2px;}
+
   #syncStatus{
-    display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
-    background:rgba(255,255,255,.03); border:1px solid var(--border); padding:6px 12px; border-radius:20px;
-    backdrop-filter:blur(6px);
+    display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; color:var(--muted);
+    background:var(--surface); border:1px solid var(--border); padding:7px 14px; border-radius:30px;
   }
-  #syncDot{width:8px; height:8px; border-radius:50%; background:var(--muted); transition:.3s;}
-  #syncDot.on{background:var(--ok); box-shadow:0 0 8px var(--ok);}
-  #syncDot.off{background:var(--danger); box-shadow:0 0 8px var(--danger);}
+  #syncDot{width:8px; height:8px; border-radius:50%; background:var(--muted); transition:.3s; position:relative;}
+  #syncDot.on{background:var(--ok); box-shadow:0 0 0 3px rgba(52,211,153,.18);}
+  #syncDot.on::after{
+    content:''; position:absolute; inset:-4px; border-radius:50%; border:1.5px solid var(--ok);
+    animation:ring 1.8s ease-out infinite;
+  }
+  #syncDot.off{background:var(--danger); box-shadow:0 0 0 3px rgba(255,85,119,.18);}
+  @keyframes ring{0%{transform:scale(.6); opacity:.9;} 100%{transform:scale(2.1); opacity:0;}}
 
-  .toolbar{
-    display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;
+  .pulse-bar{
+    height:3px; width:100%;
+    background:linear-gradient(90deg, var(--amber), var(--cyan), var(--violet), var(--amber));
+    background-size:300% 100%;
+    animation:flow 6s linear infinite;
   }
-  .field{display:flex; flex-direction:column; gap:4px;}
-  .field label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;}
-  .field input, .field select{
-    background:var(--card); border:1px solid var(--border); color:var(--text);
-    padding:8px 10px; border-radius:8px; font-size:13px; outline:none; min-width:130px;
-  }
-  .field input:focus, .field select:focus{border-color:var(--cyan);}
-  .btn{
-    padding:9px 16px; border-radius:8px; border:1px solid var(--border);
-    background:var(--card); color:var(--text); font-size:13px; font-weight:600; cursor:pointer;
-    transition:.15s;
-  }
-  .btn:hover{border-color:var(--cyan); color:var(--cyan);}
-  .btn.primary{background:linear-gradient(135deg,var(--cyan),#0891b2); color:#00161b; border:none;}
-  .btn.primary:hover{filter:brightness(1.1); color:#00161b;}
-  .btn.ghost{background:transparent;}
+  @keyframes flow{0%{background-position:0% 0;} 100%{background-position:300% 0;}}
 
-  .summary{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;}
+  .wrap{max-width:1180px; margin:0 auto; padding:26px 20px 0;}
+
+  /* ---------- KPIs ---------- */
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:20px;}
   .kpi{
-    background:var(--card); border:1px solid var(--border); border-radius:10px;
-    padding:12px 16px; min-width:140px;
+    --accent:var(--amber);
+    background:linear-gradient(160deg, var(--surface) 0%, var(--navy) 100%);
+    border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px;
+    display:flex; align-items:center; gap:14px; position:relative; overflow:hidden;
+    animation:rise .5s ease both;
   }
-  .kpi .n{font-size:20px; font-weight:700; color:var(--cyan);}
-  .kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-top:2px;}
+  .kpi:nth-child(2){animation-delay:.06s;} .kpi:nth-child(3){animation-delay:.12s;}
+  @keyframes rise{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+  .kpi::before{
+    content:''; position:absolute; inset:0; border-radius:inherit; padding:1px;
+    background:linear-gradient(140deg, var(--accent), transparent 55%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude; opacity:.55; pointer-events:none;
+  }
+  .kpi-icon{
+    width:38px; height:38px; border-radius:11px; flex-shrink:0;
+    background:color-mix(in srgb, var(--accent) 16%, transparent);
+    color:var(--accent); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 16px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .kpi-icon svg{width:19px; height:19px;}
+  .kpi .n{font-family:'Orbitron',sans-serif; font-size:22px; font-weight:700; color:var(--text); line-height:1;}
+  .kpi .l{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:600; margin-top:5px;}
 
-  .table-wrap{
-    background:var(--card); border:1px solid var(--border); border-radius:12px;
-    overflow-x:auto; overflow-y:visible; -webkit-overflow-scrolling:touch;
+  /* ---------- TOOLBAR ---------- */
+  .toolbar-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; margin-bottom:20px;
   }
-  table{width:100%; min-width:760px; border-collapse:collapse; font-size:13px;}
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .field{display:flex; flex-direction:column; gap:5px; flex:1; min-width:140px;}
+  .field label{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; font-weight:700;}
+  .input-wrap{position:relative;}
+  .input-wrap svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:var(--muted); pointer-events:none;}
+  .field input, .field select{
+    width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    padding:10px 12px 10px 34px; border-radius:10px; font-family:'Rajdhani',sans-serif; font-weight:600;
+    font-size:14px; outline:none; transition:.15s;
+  }
+  select.no-icon, .field select{padding-left:12px;}
+  .field input:focus, .field select:focus{border-color:var(--cyan); box-shadow:0 0 0 3px rgba(0,229,255,.12);}
+  .btn-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn{
+    padding:10px 16px; border-radius:10px; border:1px solid var(--border);
+    background:var(--surface2); color:var(--text); font-family:'Rajdhani',sans-serif;
+    font-size:13.5px; font-weight:700; letter-spacing:.2px; cursor:pointer; transition:.15s;
+    display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  .btn svg{width:15px; height:15px;}
+  .btn:hover{border-color:var(--cyan); color:var(--cyan); transform:translateY(-1px);}
+  .btn.primary{
+    background:linear-gradient(120deg, var(--amber), #ff8a3d); color:#1a0f00; border:none;
+    box-shadow:0 4px 18px rgba(242,183,5,.28);
+  }
+  .btn.primary:hover{filter:brightness(1.08); color:#1a0f00; transform:translateY(-1px); box-shadow:0 6px 22px rgba(242,183,5,.4);}
+  .btn.ghost{background:transparent; border-color:transparent; color:var(--muted);}
+  .btn.ghost:hover{color:var(--text); background:var(--surface2);}
+
+  /* ---------- DATA TABLE ---------- */
+  .data-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
+  .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table{width:100%; min-width:720px; border-collapse:collapse; font-size:13.5px;}
   th{
-    text-align:left; padding:12px 14px; color:var(--muted); font-weight:600;
-    text-transform:uppercase; font-size:10.5px; letter-spacing:.5px; white-space:nowrap;
-    border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card);
+    text-align:left; padding:13px 16px; color:var(--muted); font-weight:700;
+    text-transform:uppercase; font-size:10.5px; letter-spacing:.6px; white-space:nowrap;
+    border-bottom:1px solid var(--border); background:var(--surface2);
   }
-  td{padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.04); white-space:nowrap;}
-  tr:hover td{background:rgba(34,211,238,.04);}
+  td{padding:13px 16px; border-bottom:1px solid var(--border-soft); white-space:nowrap; font-weight:600;}
+  tbody tr{transition:.12s;}
+  tbody tr:hover{background:rgba(0,229,255,.045);}
+  tbody tr:last-child td{border-bottom:none;}
+  .colab{font-weight:700; color:var(--text);}
+  .data-cell{font-family:'Orbitron',sans-serif; font-size:11px; color:var(--cyan); letter-spacing:.3px;}
   .motivo-tag{
-    padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600;
-    background:rgba(245,165,36,.12); color:var(--amber); border:1px solid rgba(245,165,36,.25);
+    padding:4px 11px; border-radius:20px; font-size:11.5px; font-weight:700;
+    color:var(--tc,var(--amber));
+    background:color-mix(in srgb, var(--tc,var(--amber)) 16%, transparent);
+    border:1px solid color-mix(in srgb, var(--tc,var(--amber)) 42%, transparent);
+    white-space:nowrap;
   }
-  .valor{color:var(--ok); font-weight:600;}
-  .empty{padding:40px; text-align:center; color:var(--muted); font-size:13px;}
-  .del{background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px;}
-  .del:hover{color:var(--danger);}
+  .valor{color:var(--ok); font-weight:700; font-family:'Orbitron',sans-serif; font-size:12.5px;}
+  .empty{padding:52px 20px; text-align:center; color:var(--muted);}
+  .empty svg{width:38px; height:38px; margin-bottom:12px; opacity:.5;}
+  .empty p{font-size:13.5px; max-width:320px; margin:0 auto;}
+  .del{
+    background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+    cursor:pointer; width:30px; height:30px; border-radius:9px; display:inline-flex;
+    align-items:center; justify-content:center; transition:.15s;
+  }
+  .del svg{width:14px; height:14px;}
+  .del:hover{color:var(--danger); border-color:var(--danger); background:rgba(255,85,119,.1);}
 
-  /* Modal de lançamento manual */
+  /* ---------- MODAL ---------- */
   .modal-bg{
-    position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
-    align-items:center; justify-content:center; z-index:50; padding:16px; backdrop-filter:blur(3px);
+    position:fixed; inset:0; background:rgba(4,7,13,.7); backdrop-filter:blur(4px); display:none;
+    align-items:center; justify-content:center; z-index:60; padding:16px;
   }
   .modal-bg.open{display:flex;}
   .modal{
-    background:var(--bg2); border:1px solid var(--border); border-radius:14px;
-    padding:22px; width:100%; max-width:420px;
+    background:linear-gradient(165deg, var(--surface) 0%, var(--navy) 100%);
+    border:1px solid var(--border); border-radius:18px; padding:24px; width:100%; max-width:440px;
+    animation:pop .18s ease both;
   }
-  .modal h2{font-size:15px; margin-bottom:16px;}
-  .modal .field{width:100%; margin-bottom:10px;}
-  .modal .field input{width:100%;}
-  .modal .row{display:flex; gap:8px;}
-  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:14px;}
+  @keyframes pop{from{opacity:0; transform:scale(.96) translateY(6px);} to{opacity:1; transform:none;}}
+  .modal h2{font-family:'Orbitron',sans-serif; font-size:14.5px; margin-bottom:18px; display:flex; align-items:center; gap:9px;}
+  .modal h2 svg{width:17px; height:17px; color:var(--amber);}
+  .modal .field{width:100%; margin-bottom:11px;}
+  .modal .field input{width:100%; padding-left:12px;}
+  .modal .row{display:flex; gap:10px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:9px; margin-top:16px;}
 
-  @media (max-width:640px){
+  .scroll-hint{display:none; text-align:center; font-size:11px; color:var(--muted); padding:10px 0 2px; font-weight:600;}
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width:720px){
     .toolbar{flex-direction:column; align-items:stretch;}
-    .field input, .field select{min-width:0; width:100%;}
-    .scroll-hint{display:block;}
-  }
-  .scroll-hint{
-    display:none; text-align:center; font-size:11px; color:var(--muted);
-    margin-top:6px;
+    .field{min-width:0;}
+    .btn-row{width:100%;}
+    .btn-row .btn{flex:1; justify-content:center;}
+
+    table, thead, tbody, th, td, tr{display:block; width:100%;}
+    thead{display:none;}
+    tbody tr{
+      background:var(--surface2); border:1px solid var(--border); border-radius:14px;
+      margin:12px; padding:4px 0; position:relative;
+    }
+    tbody tr:hover{background:var(--surface2);}
+    td{
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+      text-align:right; padding:9px 14px; border-bottom:1px solid var(--border-soft); white-space:normal;
+    }
+    tbody tr:last-child{margin-bottom:20px;}
+    td:last-child{border-bottom:none;}
+    td::before{
+      content:attr(data-label); font-size:10.5px; text-transform:uppercase; color:var(--muted);
+      text-align:left; font-weight:700; letter-spacing:.4px; flex-shrink:0;
+    }
+    td.cell-data{padding-bottom:0; border-bottom:none;}
+    td.cell-data::before{content:'';}
+    td.cell-data .data-cell{margin-left:auto;}
+    td.cell-colab{padding-top:2px;}
+    td.cell-colab::before{content:'';}
+    td.cell-colab .colab{font-size:16px; margin-left:auto;}
+    td.cell-actions{justify-content:center; padding:11px 14px 13px;}
+    td.cell-actions::before{content:'';}
+    .scroll-hint{display:none !important;}
   }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="brand">
-    <div class="logo-hex">
-      <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="hexGradPainel" x1="0" y1="0" x2="100" y2="110" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#0d3878"/>
-            <stop offset="100%" stop-color="#051225"/>
-          </linearGradient>
-          <linearGradient id="hexStrokePainel" x1="0" y1="0" x2="100" y2="110" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#00eaff"/>
-            <stop offset="50%" stop-color="#0088cc"/>
-            <stop offset="100%" stop-color="#00c8f8"/>
-          </linearGradient>
-        </defs>
-        <polygon points="50,4 96,28 96,82 50,106 4,82 4,28" fill="url(#hexGradPainel)" stroke="url(#hexStrokePainel)" stroke-width="3"/>
-        <circle cx="50" cy="4" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="96" cy="28" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="96" cy="82" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="50" cy="106" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="4" cy="82" r="2.5" fill="#00eaff" opacity=".8"/>
-        <circle cx="4" cy="28" r="2.5" fill="#00eaff" opacity=".8"/>
-      </svg>
-      <div class="monogram"><span class="ltP">P</span><span class="ltJ">J</span></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="logo-hex">
+        <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="hexGradPainel" x1="0" y1="0" x2="100" y2="110" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#0d3878"/>
+              <stop offset="100%" stop-color="#051225"/>
+            </linearGradient>
+            <linearGradient id="hexStrokePainel" x1="0" y1="0" x2="100" y2="110" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#00eaff"/>
+              <stop offset="50%" stop-color="#a06bff"/>
+              <stop offset="100%" stop-color="#f2b705"/>
+            </linearGradient>
+          </defs>
+          <polygon points="50,4 96,28 96,82 50,106 4,82 4,28" fill="url(#hexGradPainel)" stroke="url(#hexStrokePainel)" stroke-width="3"/>
+          <circle cx="50" cy="4" r="2.5" fill="#00eaff" opacity=".8"/>
+          <circle cx="96" cy="28" r="2.5" fill="#00eaff" opacity=".8"/>
+          <circle cx="96" cy="82" r="2.5" fill="#00eaff" opacity=".8"/>
+          <circle cx="50" cy="106" r="2.5" fill="#00eaff" opacity=".8"/>
+          <circle cx="4" cy="82" r="2.5" fill="#00eaff" opacity=".8"/>
+          <circle cx="4" cy="28" r="2.5" fill="#00eaff" opacity=".8"/>
+        </svg>
+        <div class="monogram"><span class="ltP">P</span><span class="ltJ">J</span></div>
+      </div>
+      <div class="brand-text">
+        <h1>Lançamentos — Grupo M.S</h1>
+        <span>PJ Tecnologia e Sistemas</span>
+      </div>
     </div>
-    <div>
-      <h1>Lançamentos — Grupo M.S<span>PJ Tecnologia e Sistemas</span></h1>
-    </div>
+    <div id="syncStatus"><span id="syncDot"></span><span id="syncText">Conectando...</span></div>
   </div>
-  <div id="syncStatus"><span id="syncDot"></span><span id="syncText">Conectando...</span></div>
+  <div class="pulse-bar"></div>
 </header>
 
-<div class="summary">
-  <div class="kpi"><div class="n" id="kpiTotal">0</div><div class="l">Lançamentos</div></div>
-  <div class="kpi"><div class="n" id="kpiValor">R$ 0,00</div><div class="l">Total no período</div></div>
-  <div class="kpi"><div class="n" id="kpiColab">0</div><div class="l">Colaboradores únicos</div></div>
-</div>
+<div class="wrap">
 
-<div class="toolbar">
-  <div class="field">
-    <label>Buscar</label>
-    <input type="text" id="fBusca" placeholder="Nome, posto, contrato...">
+  <div class="kpis">
+    <div class="kpi" style="--accent:var(--amber)">
+      <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+      <div><div class="n" id="kpiTotal">0</div><div class="l">Lançamentos</div></div>
+    </div>
+    <div class="kpi" style="--accent:var(--violet)">
+      <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+      <div><div class="n" id="kpiValor">R$ 0,00</div><div class="l">Total no período</div></div>
+    </div>
+    <div class="kpi" style="--accent:var(--cyan)">
+      <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <div><div class="n" id="kpiColab">0</div><div class="l">Colaboradores únicos</div></div>
+    </div>
   </div>
-  <div class="field">
-    <label>Data início</label>
-    <input type="date" id="fDataIni">
-  </div>
-  <div class="field">
-    <label>Data fim</label>
-    <input type="date" id="fDataFim">
-  </div>
-  <div class="field">
-    <label>Motivo</label>
-    <select id="fMotivo"><option value="">Todos</option></select>
-  </div>
-  <button class="btn" id="btnLimpar">Limpar filtros</button>
-  <button class="btn" id="btnExport">Exportar CSV</button>
-  <button class="btn primary" id="btnNovo">+ Novo lançamento</button>
-</div>
 
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
-        <th>Motivo</th><th>Horário</th><th>Valor</th><th></th>
-      </tr>
-    </thead>
-    <tbody id="tbody">
-      <tr><td colspan="7" class="empty">Carregando lançamentos...</td></tr>
-    </tbody>
-  </table>
+  <div class="toolbar-card">
+    <div class="toolbar">
+      <div class="field">
+        <label>Buscar</label>
+        <div class="input-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="fBusca" placeholder="Nome, posto, contrato...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Data início</label>
+        <input type="date" id="fDataIni">
+      </div>
+      <div class="field">
+        <label>Data fim</label>
+        <input type="date" id="fDataFim">
+      </div>
+      <div class="field">
+        <label>Motivo</label>
+        <select id="fMotivo"><option value="">Todos</option></select>
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost" id="btnLimpar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          Limpar
+        </button>
+        <button class="btn" id="btnExport">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar CSV
+        </button>
+        <button class="btn primary" id="btnNovo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo lançamento
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="data-card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
+            <th>Motivo</th><th>Horário</th><th>Valor</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="7" class="empty">Carregando lançamentos...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="scroll-hint">← Arraste para o lado para ver todas as colunas →</div>
+  </div>
 </div>
-<div class="scroll-hint">← Arraste para o lado para ver todas as colunas →</div>
 
 <div class="modal-bg" id="modalBg">
   <div class="modal">
-    <h2>Novo lançamento manual</h2>
+    <h2>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Novo lançamento manual
+    </h2>
     <div class="field"><label>Data</label><input type="date" id="mData"></div>
     <div class="field"><label>Colaborador (FT)</label><input type="text" id="mColab" placeholder="Nome completo"></div>
     <div class="field"><label>Posto / Contrato</label><input type="text" id="mContrato" placeholder="Ex: Pantanal"></div>
@@ -230,9 +361,7 @@
 
 <script>
 // ======================================================
-// CONFIGURAÇÃO FIREBASE — troque pelos dados do seu projeto
-// (pode reaproveitar o mesmo projeto do Controle de Acesso
-// ou da FT, criando só a coleção "lancamentos")
+// CONFIGURAÇÃO FIREBASE — mesmas credenciais do projeto original
 // ======================================================
 const firebaseConfig = {
   apiKey: "AIzaSyCipzGGPY1U-Td8sJ1mAnd9VoIXQne4mrE",
@@ -243,7 +372,7 @@ const firebaseConfig = {
   appId: "1:406562279464:web:3f427e5a722932fd8f251d"
 };
 
-const COLLECTION = "lancamentos"; // mesmo nome que o bot vai usar para gravar
+const COLLECTION = "lancamentos"; // mesmo nome que o bot usa para gravar
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
@@ -303,6 +432,19 @@ function parseValor(v){
   return parseFloat(n) || 0;
 }
 
+// Cor consistente por motivo, só pra facilitar a leitura visual — não afeta os dados
+const ACCENTS = ['#f2b705','#00e5ff','#a06bff','#34d399','#ff5577','#38bdf8'];
+function motivoColor(motivo){
+  if(!motivo) return ACCENTS[0];
+  let hash = 0;
+  for(let i=0;i<motivo.length;i++){ hash = motivo.charCodeAt(i) + ((hash<<5)-hash); }
+  return ACCENTS[Math.abs(hash) % ACCENTS.length];
+}
+
+function esc(v){
+  return (v || '—').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
 function filtrar(){
   const busca = document.getElementById('fBusca').value.toLowerCase();
   const dIni = document.getElementById('fDataIni').value;
@@ -326,19 +468,27 @@ function renderizar(){
   const tbody = document.getElementById('tbody');
 
   if(dados.length === 0){
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhum lançamento encontrado. Ajuste os filtros ou aguarde novos lançamentos do grupo.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+      <p>Nenhum lançamento encontrado. Ajuste os filtros ou aguarde novos lançamentos do grupo.</p>
+    </td></tr>`;
   } else {
-    tbody.innerHTML = dados.map(d => `
+    tbody.innerHTML = dados.map(d => {
+      const cor = motivoColor(d.motivo);
+      return `
       <tr>
-        <td>${d.data || '—'}</td>
-        <td>${d.colaborador || '—'}</td>
-        <td>${d.contrato || '—'}</td>
-        <td><span class="motivo-tag">${d.motivo || '—'}</span></td>
-        <td>${d.horario || '—'}</td>
-        <td class="valor">${d.valor ? 'R$ ' + d.valor : '—'}</td>
-        <td><button class="del" onclick="excluir('${d.id}')" title="Excluir">✕</button></td>
+        <td class="cell-data" data-label="Data"><span class="data-cell">${esc(d.data)}</span></td>
+        <td class="cell-colab" data-label="Colaborador"><span class="colab">${esc(d.colaborador)}</span></td>
+        <td data-label="Posto/Contrato">${esc(d.contrato)}</td>
+        <td data-label="Motivo"><span class="motivo-tag" style="--tc:${cor}">${esc(d.motivo)}</span></td>
+        <td data-label="Horário">${esc(d.horario)}</td>
+        <td class="valor" data-label="Valor">${d.valor ? 'R$ ' + esc(d.valor) : '—'}</td>
+        <td class="cell-actions" data-label=""><button class="del" onclick="excluir('${d.id}')" title="Excluir">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button></td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
   }
 
   document.getElementById('kpiTotal').textContent = dados.length;
