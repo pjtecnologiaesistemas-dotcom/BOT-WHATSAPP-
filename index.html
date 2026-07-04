@@ -43,6 +43,9 @@
     max-width:1180px; margin:0 auto; padding:14px 20px;
     display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
   }
+  @media (min-width:1440px){
+    .topbar-inner, .wrap{max-width:1360px;}
+  }
   .brand{display:flex; align-items:center; gap:13px;}
   .logo-hex{position:relative; width:44px; height:48px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
   .logo-hex svg{position:absolute; inset:0; width:100%; height:100%; filter:drop-shadow(0 0 10px rgba(0,229,255,.5));}
@@ -192,7 +195,35 @@
   .scroll-hint{display:none; text-align:center; font-size:11px; color:var(--muted); padding:10px 0 2px; font-weight:600;}
 
   /* ---------- RESPONSIVE ---------- */
+
+  /* Laptops médios / telas menores que o max-width padrão: aperta o container */
+  @media (max-width:1200px){
+    .topbar-inner, .wrap{max-width:100%; padding-left:18px; padding-right:18px;}
+  }
+
+  /* Tablets (retrato) e celulares grandes */
+  @media (max-width:900px){
+    .wrap{padding:20px 16px 0;}
+    .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px;}
+    .kpi{padding:14px;}
+    .toolbar{gap:9px;}
+    .field{min-width:130px;}
+  }
+
+  /* Celulares e tablets pequenos — layout empilhado */
   @media (max-width:720px){
+    .topbar-inner{padding:12px 16px;}
+    .brand-text h1{font-size:13.5px;}
+    .brand-text span{font-size:10.5px;}
+    #syncStatus{font-size:11px; padding:6px 11px;}
+
+    .wrap{padding:18px 14px 0;}
+    .kpis{grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px;}
+    .kpi{padding:13px 14px; gap:11px;}
+    .kpi-icon{width:34px; height:34px;}
+    .kpi .n{font-size:19px;}
+
+    .toolbar-card{padding:13px;}
     .toolbar{flex-direction:column; align-items:stretch;}
     .field{min-width:0;}
     .btn-row{width:100%;}
@@ -224,6 +255,37 @@
     td.cell-actions{justify-content:center; padding:11px 14px 13px;}
     td.cell-actions::before{content:'';}
     .scroll-hint{display:none !important;}
+
+    .modal{padding:20px;}
+    .modal .row{flex-direction:column; gap:0;}
+  }
+
+  /* Celulares pequenos (ex: iPhone SE, Android compacto ~360px e menos) */
+  @media (max-width:400px){
+    .brand{gap:9px;}
+    .logo-hex{width:36px; height:40px;}
+    .logo-hex .ltP{font-size:.9rem;}
+    .logo-hex .ltJ{font-size:.62rem;}
+    .brand-text h1{font-size:12px;}
+    .brand-text span{font-size:9.5px;}
+    #syncStatus span:not(#syncDot){display:none;}
+    #syncStatus{padding:7px; border-radius:50%;}
+
+    .kpis{grid-template-columns:1fr 1fr; gap:8px;}
+    .kpi{flex-direction:column; align-items:flex-start; gap:8px; padding:12px;}
+    .kpi .n{font-size:17px;}
+    .kpi .l{font-size:10px;}
+
+    .btn{padding:9px 12px; font-size:12.5px;}
+    .btn-row{flex-wrap:wrap;}
+
+    .modal{padding:16px; max-width:100%;}
+    .modal h2{font-size:13px;}
+  }
+
+  /* Telas muito pequenas em altura ou largura extrema */
+  @media (max-width:340px){
+    .kpis{grid-template-columns:1fr;}
   }
 </style>
 </head>
@@ -428,8 +490,29 @@ function popularFiltroMotivo(){
 
 function parseValor(v){
   if(!v) return 0;
-  const n = String(v).replace(/[^\d,.-]/g,'').replace(',', '.');
-  return parseFloat(n) || 0;
+  let s = String(v).trim().replace(/[^\d,.-]/g, '');
+  if(!s) return 0;
+
+  const temVirgula = s.includes(',');
+  const temPonto = s.includes('.');
+
+  if(temVirgula && temPonto){
+    // Formato BR: "1.500,00" -> ponto é milhar, vírgula é decimal
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if(temVirgula){
+    // Só vírgula: "160,00" -> decimal
+    s = s.replace(',', '.');
+  } else if(temPonto){
+    // Só ponto: pode ser decimal "160.00" ou milhar "1.500" — trata como decimal
+    // exceto quando há mais de um ponto (aí são milhares: "1.500.000")
+    const partes = s.split('.');
+    if(partes.length > 2){
+      s = partes.join('');
+    }
+  }
+
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
 }
 
 // Cor consistente por motivo, só pra facilitar a leitura visual — não afeta os dados
