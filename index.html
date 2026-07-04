@@ -8,6 +8,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<!-- jsPDF, jsPDF-AutoTable e SheetJS são carregados dinamicamente pelo próprio app
+     (ver função carregarBiblioteca), priorizando um arquivo local na pasta /libs
+     (funciona 100% offline desde a primeira abertura), com cache do navegador e
+     CDN como alternativas caso a pasta /libs ainda não tenha sido adicionada. -->
 <style>
   :root{
     --void:#060a12; --navy:#0d1b2a; --surface:#121f30; --surface2:#16273a;
@@ -78,6 +82,23 @@
 
   .wrap{max-width:1180px; margin:0 auto; padding:26px 20px 0;}
 
+  /* ---------- TABS ---------- */
+  .tabs{
+    display:flex; gap:8px; margin-bottom:18px; border-bottom:1px solid var(--border-soft);
+  }
+  .tab{
+    display:flex; align-items:center; gap:8px; background:none; border:none; cursor:pointer;
+    color:var(--muted); font-family:'Rajdhani',sans-serif; font-weight:700; font-size:14px;
+    letter-spacing:.3px; padding:11px 6px 13px; position:relative; transition:.15s;
+  }
+  .tab svg{width:16px; height:16px;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--amber);}
+  .tab.active::after{
+    content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px;
+    background:linear-gradient(90deg,var(--amber),var(--cyan)); border-radius:2px;
+  }
+
   /* ---------- KPIs ---------- */
   .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:20px;}
   .kpi{
@@ -138,6 +159,13 @@
   .btn.primary:hover{filter:brightness(1.08); color:#1a0f00; transform:translateY(-1px); box-shadow:0 6px 22px rgba(242,183,5,.4);}
   .btn.ghost{background:transparent; border-color:transparent; color:var(--muted);}
   .btn.ghost:hover{color:var(--text); background:var(--surface2);}
+
+  .btn.export-csv{border-color:rgba(0,229,255,.35); color:var(--cyan);}
+  .btn.export-csv:hover{border-color:var(--cyan); background:rgba(0,229,255,.1); color:var(--cyan);}
+  .btn.export-excel{border-color:rgba(52,211,153,.4); color:var(--ok);}
+  .btn.export-excel:hover{border-color:var(--ok); background:rgba(52,211,153,.1); color:var(--ok);}
+  .btn.export-pdf{border-color:rgba(255,85,119,.4); color:var(--danger);}
+  .btn.export-pdf:hover{border-color:var(--danger); background:rgba(255,85,119,.1); color:var(--danger);}
 
   /* ---------- DATA TABLE ---------- */
   .data-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
@@ -285,6 +313,8 @@
 
   /* Celulares pequenos (ex: iPhone SE, Android compacto ~360px e menos) */
   @media (max-width:400px){
+    .tab{font-size:12.5px; padding:9px 4px 11px; gap:6px;}
+    .tab svg{width:14px; height:14px;}
     .brand{gap:9px;}
     .logo-hex{width:36px; height:40px;}
     .logo-hex .ltP{font-size:.9rem;}
@@ -352,6 +382,18 @@
 
 <div class="wrap">
 
+  <div class="tabs" role="tablist">
+    <button class="tab active" id="tabBtnLancamentos" role="tab" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Lançamentos
+    </button>
+    <button class="tab" id="tabBtnHistorico" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+      Histórico
+    </button>
+  </div>
+
+  <div id="viewLancamentos">
   <div class="kpis">
     <div class="kpi" style="--accent:var(--amber)">
       <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
@@ -421,6 +463,53 @@
     </div>
     <div class="scroll-hint">← Arraste para o lado para ver todas as colunas →</div>
   </div>
+  </div><!-- /viewLancamentos -->
+
+  <div id="viewHistorico" style="display:none">
+    <div class="toolbar-card">
+      <div class="toolbar">
+        <div class="field" style="flex:2">
+          <label>Buscar no histórico</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="fHistBusca" placeholder="Nome, posto, contrato, motivo...">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn export-csv" id="btnExportHistorico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            CSV
+          </button>
+          <button class="btn export-excel" id="btnExportHistoricoExcel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="21"/><line x1="16" y1="13" x2="8" y2="21"/></svg>
+            Excel
+          </button>
+          <button class="btn export-pdf" id="btnExportHistoricoPdf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="18" x2="13" y2="18"/></svg>
+            PDF
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="data-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
+              <th>Motivo</th><th>Horário</th><th>Valor</th><th>Origem</th><th>Registrado em</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyHistorico">
+            <tr><td colspan="8" class="empty">Carregando histórico...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="scroll-hint">← Arraste para o lado para ver todas as colunas →</div>
+    </div>
+  </div><!-- /viewHistorico -->
+
 </div>
 
 <div class="modal-bg" id="modalBg">
@@ -468,6 +557,98 @@ const syncText = document.getElementById('syncText');
 let allDocs = [];
 let editandoId = null;
 
+// ======================================================
+// CARREGADOR DE BIBLIOTECAS (jsPDF / AutoTable / SheetJS)
+// Ordem de prioridade, pra funcionar em QUALQUER situação:
+//   1) Arquivo local na pasta /libs (junto do site) — funciona
+//      offline desde a primeira abertura, sem depender de nada.
+//   2) Cache do navegador (Cache Storage) — se já foi baixado
+//      da internet em uma visita anterior.
+//   3) CDN (internet) — só usado se as duas opções acima
+//      falharem, e já guarda em cache pra próxima vez.
+//
+// Para ativar o modo 100% offline (opção 1), baixe estes 3
+// arquivos e coloque numa pasta "libs" ao lado deste HTML:
+//   libs/jspdf.umd.min.js
+//     -> https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js
+//   libs/jspdf.plugin.autotable.min.js
+//     -> https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js
+//   libs/xlsx.full.min.js
+//     -> https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js
+// Sem essa pasta, o app continua funcionando normalmente,
+// só que a 1ª vez que usar Excel/PDF vai precisar de internet.
+// ======================================================
+const LIB_CACHE = 'pj-export-libs-v1';
+const EXPORT_LIBS = {
+  xlsx:      { local: 'libs/xlsx.full.min.js',                  cdn: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js' },
+  jspdf:     { local: 'libs/jspdf.umd.min.js',                  cdn: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' },
+  autotable: { local: 'libs/jspdf.plugin.autotable.min.js',     cdn: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js' }
+};
+
+async function carregarBiblioteca(chave){
+  if(document.querySelector(`script[data-lib-key="${chave}"]`)) return; // já injetado
+
+  const info = EXPORT_LIBS[chave];
+  let codigo = null;
+
+  // 1) arquivo local embutido no site (o melhor caso: sempre funciona, mesmo offline)
+  try{
+    const respLocal = await fetch(info.local, {cache:'force-cache'});
+    if(respLocal.ok) codigo = await respLocal.text();
+  }catch(e){ /* pasta libs/ não existe ainda — segue pro próximo passo */ }
+
+  // 2) cache do navegador (baixado da internet numa visita anterior)
+  if(!codigo && 'caches' in window){
+    try{
+      const cache = await caches.open(LIB_CACHE);
+      const resp = await cache.match(info.cdn);
+      if(resp) codigo = await resp.text();
+    }catch(e){ /* segue pro próximo passo */ }
+  }
+
+  // 3) última opção: internet (e já guarda em cache pra próxima vez)
+  if(!codigo){
+    const resp = await fetch(info.cdn);
+    if(!resp.ok) throw new Error('Não foi possível carregar a biblioteca: ' + chave);
+    codigo = await resp.text();
+    if('caches' in window){
+      try{
+        const cache = await caches.open(LIB_CACHE);
+        await cache.put(info.cdn, new Response(codigo, {headers:{'Content-Type':'application/javascript'}}));
+      }catch(e){ /* sem espaço/permissão, tudo bem, só não guarda pra próxima vez */ }
+    }
+  }
+
+  const script = document.createElement('script');
+  script.textContent = codigo;
+  script.setAttribute('data-lib-key', chave);
+  document.head.appendChild(script);
+}
+
+async function garantirExcelLib(){
+  if(typeof XLSX !== 'undefined') return;
+  await carregarBiblioteca('xlsx');
+}
+
+async function garantirPdfLib(){
+  if(!window.jspdf){
+    await carregarBiblioteca('jspdf');
+  }
+  if(!(window.jspdf && window.jspdf.jsPDF.API.autoTable)){
+    await carregarBiblioteca('autotable');
+  }
+}
+
+// Pré-carrega em segundo plano (sem travar a tela) assim que a página abre,
+// pra já deixar tudo pronto (local, cache ou internet) antes de precisar exportar.
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    Object.keys(EXPORT_LIBS).forEach(chave => {
+      carregarBiblioteca(chave).catch(() => {});
+    });
+  }, 1500);
+});
+
 auth.signInAnonymously().catch(err => {
   syncText.textContent = 'Erro de autenticação';
   dot.className = 'off';
@@ -488,6 +669,7 @@ function escutarLancamentos(){
       allDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       popularFiltroMotivo();
       renderizar();
+      renderHistorico();
       dot.className = 'on';
       syncText.textContent = 'Sincronizado';
     },
@@ -610,6 +792,50 @@ function renderizar(){
     new Set(dados.map(d => d.colaborador).filter(Boolean)).size;
 }
 
+function formatarCriadoEm(ts){
+  if(!ts || typeof ts.toDate !== 'function') return '—';
+  try{
+    return ts.toDate().toLocaleString('pt-BR', {
+      day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+    });
+  }catch(e){
+    return '—';
+  }
+}
+
+function renderHistorico(){
+  // Histórico mostra TODOS os lançamentos já registrados, sem filtro de período —
+  // é o registro completo, não afetado pelos filtros da aba Lançamentos.
+  const dados = dadosHistoricoFiltrados();
+
+  const tbody = document.getElementById('tbodyHistorico');
+  if(!tbody) return;
+
+  if(dados.length === 0){
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+      <p>Nenhum lançamento no histórico ainda.</p>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = dados.map(d => {
+    const cor = motivoColor(d.motivo);
+    return `
+    <tr>
+      <td class="cell-data" data-label="Data"><span class="data-cell">${esc(d.data)}</span></td>
+      <td class="cell-colab" data-label="Colaborador"><span class="colab">${esc(d.colaborador)}</span></td>
+      <td data-label="Posto/Contrato">${esc(d.contrato)}</td>
+      <td data-label="Motivo"><span class="motivo-tag" style="--tc:${cor}">${esc(d.motivo)}</span></td>
+      <td data-label="Horário">${esc(d.horario)}</td>
+      <td class="valor" data-label="Valor">${d.valor ? 'R$ ' + esc(d.valor) : '—'}</td>
+      <td data-label="Origem">${esc(d.origem || 'bot')}</td>
+      <td data-label="Registrado em">${formatarCriadoEm(d.criadoEm)}</td>
+    </tr>
+  `;
+  }).join('');
+}
+
 function excluir(id){
   if(confirm('Excluir este lançamento?')){
     db.collection(COLLECTION).doc(id).delete();
@@ -657,6 +883,136 @@ document.getElementById('btnExport').addEventListener('click', () => {
   a.href = url; a.download = `lancamentos_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+});
+
+// ---------- Aba Histórico ----------
+document.getElementById('fHistBusca').addEventListener('input', renderHistorico);
+
+function dadosHistoricoFiltrados(){
+  const buscaEl = document.getElementById('fHistBusca');
+  const busca = buscaEl ? buscaEl.value.toLowerCase() : '';
+  return allDocs.filter(d => {
+    if(!busca) return true;
+    const alvo = `${d.colaborador||''} ${d.contrato||''} ${d.motivo||''} ${d.horario||''} ${d.origem||''}`.toLowerCase();
+    return alvo.includes(busca);
+  });
+}
+
+const HIST_HEADER = ['Data','Colaborador','Posto/Contrato','Motivo','Horário','Valor','Origem','Registrado em'];
+function dadosHistoricoLinhas(){
+  return dadosHistoricoFiltrados().map(d => [
+    d.data || '', d.colaborador || '', d.contrato || '', d.motivo || '',
+    d.horario || '', d.valor ? `R$ ${d.valor}` : '—',
+    d.origem || 'bot', formatarCriadoEm(d.criadoEm)
+  ]);
+}
+
+document.getElementById('btnExportHistorico').addEventListener('click', () => {
+  const linhas = dadosHistoricoLinhas().map(l =>
+    l.map(v => `"${v.toString().replace(/"/g,'""')}"`).join(';')
+  );
+  const csv = [HIST_HEADER.join(';'), ...linhas].join('\n');
+  const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `historico_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btnExportHistoricoExcel').addEventListener('click', async (ev) => {
+  const btn = ev.currentTarget;
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.style.opacity = '.6';
+  try{
+    await garantirExcelLib();
+  }catch(e){
+    console.error(e);
+    alert('Não foi possível carregar o gerador de Excel agora. Conecte-se à internet uma vez para habilitar essa função — depois disso ela passa a funcionar mesmo offline.');
+    btn.disabled = false;
+    btn.style.opacity = '';
+    return;
+  }
+
+  const linhas = dadosHistoricoLinhas();
+  const ws = XLSX.utils.aoa_to_sheet([HIST_HEADER, ...linhas]);
+  ws['!cols'] = [
+    {wch:12},{wch:26},{wch:20},{wch:20},{wch:16},{wch:12},{wch:10},{wch:18}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Histórico');
+  XLSX.writeFile(wb, `historico_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+  btn.disabled = false;
+  btn.style.opacity = '';
+  btn.innerHTML = textoOriginal;
+});
+
+document.getElementById('btnExportHistoricoPdf').addEventListener('click', async (ev) => {
+  const btn = ev.currentTarget;
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.style.opacity = '.6';
+  try{
+    await garantirPdfLib();
+  }catch(e){
+    console.error(e);
+    alert('Não foi possível carregar o gerador de PDF agora. Conecte-se à internet uma vez para habilitar essa função — depois disso ela passa a funcionar mesmo offline.');
+    btn.disabled = false;
+    btn.style.opacity = '';
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+  doc.setFontSize(14);
+  doc.text('Histórico de Lançamentos — Grupo M.S / PJ Tecnologia', 40, 36);
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 40, 52);
+
+  doc.autoTable({
+    head: [HIST_HEADER],
+    body: dadosHistoricoLinhas(),
+    startY: 66,
+    styles: { fontSize: 8, cellPadding: 5 },
+    headStyles: { fillColor: [22, 39, 58], textColor: 255 },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    margin: { left: 40, right: 40 }
+  });
+
+  doc.save(`historico_${new Date().toISOString().slice(0,10)}.pdf`);
+
+  btn.disabled = false;
+  btn.style.opacity = '';
+  btn.innerHTML = textoOriginal;
+});
+
+// ---------- Alternância de abas ----------
+const tabBtnLancamentos = document.getElementById('tabBtnLancamentos');
+const tabBtnHistorico = document.getElementById('tabBtnHistorico');
+const viewLancamentos = document.getElementById('viewLancamentos');
+const viewHistorico = document.getElementById('viewHistorico');
+
+tabBtnLancamentos.addEventListener('click', () => {
+  tabBtnLancamentos.classList.add('active');
+  tabBtnLancamentos.setAttribute('aria-selected', 'true');
+  tabBtnHistorico.classList.remove('active');
+  tabBtnHistorico.setAttribute('aria-selected', 'false');
+  viewLancamentos.style.display = '';
+  viewHistorico.style.display = 'none';
+});
+
+tabBtnHistorico.addEventListener('click', () => {
+  tabBtnHistorico.classList.add('active');
+  tabBtnHistorico.setAttribute('aria-selected', 'true');
+  tabBtnLancamentos.classList.remove('active');
+  tabBtnLancamentos.setAttribute('aria-selected', 'false');
+  viewHistorico.style.display = '';
+  viewLancamentos.style.display = 'none';
+  renderHistorico();
 });
 
 // Modal manual
