@@ -23,7 +23,7 @@
  * funciona em GitHub Pages/Netlify pois precisa ficar 24/7 ativo):
  *
  *   npm init -y
- *   npm install @whiskeysockets/baileys@6.7.22 firebase-admin qrcode-terminal pino @anthropic-ai/sdk
+ *   npm install @whiskeysockets/baileys firebase-admin qrcode-terminal pino @anthropic-ai/sdk
  *
  * Depois (SEM precisar de arquivo .json no repositório - tudo via
  * variável de ambiente, então pode usar repositório PÚBLICO):
@@ -43,11 +43,6 @@
  *      (não um QR Code). No celular do número dedicado: WhatsApp >
  *      Configurações > Aparelhos conectados > Conectar um aparelho >
  *      "Conectar com número de telefone" > digita esse código.
- *      IMPORTANTE: digite rápido, o código expira em ~60 segundos.
- *   8. Se já tentou parear antes e deu erro, apague a pasta/volume
- *      "auth_info" no Railway antes de gerar um novo código — uma
- *      sessão antiga corrompida também causa "Não foi possível
- *      conectar o dispositivo".
  * ---------------------------------------------------------------
  */
 
@@ -63,18 +58,38 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion,
-  Browsers
+  fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
 const pino = require('pino');
+const http = require('http');
+const path = require('path');
 
 // ===================== CONFIGURAÇÃO =====================
 const GROUP_NAME = 'Movimentações Diárias';
 const COLLECTION = 'lancamentos';
 const USE_AI_FALLBACK = !!process.env.ANTHROPIC_API_KEY;
+
+// Pasta onde a sessão do WhatsApp é salva. Se você criar um Volume no
+// Railway, aponte AUTH_DIR para o caminho montado (ex: /data/auth_info)
+// para a sessão sobreviver a reinícios/redeploys. Sem isso, o disco é
+// apagado a cada restart e o bot pede pareamento de novo toda vez.
+const AUTH_DIR = process.env.AUTH_DIR || path.join(__dirname, 'auth_info');
 // ==========================================================
+
+// ---------- Servidor HTTP mínimo (obrigatório no Railway) ----------
+// Sem isso, se o serviço estiver configurado como "Web" no Railway, o
+// healthcheck nunca responde e o Railway mata o container (SIGTERM)
+// antes mesmo de você conseguir digitar o código de pareamento.
+const PORT = process.env.PORT || 3000;
+let statusAtual = 'iniciando';
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end(`Bot de lançamentos ativo. Status: ${statusAtual}`);
+}).listen(PORT, () => {
+  console.log(`🌐 Servidor HTTP de healthcheck ouvindo na porta ${PORT}`);
+});
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -206,7 +221,7 @@ async function processarMensagem(texto, whatsappMsgId) {
 
 // ---------- Conexão com o WhatsApp ----------
 async function iniciar() {
-  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
   const usarPairingCode = !!process.env.PAIRING_PHONE && !state.creds.registered;
 
@@ -214,37 +229,29 @@ async function iniciar() {
     auth: state,
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
-    // Fingerprint reconhecido pelo WhatsApp. O array manual antigo
-    // (['Ubuntu','Chrome','20.0.04']) vinha causando rejeição do
-    // código de pareamento ("Não foi possível conectar o dispositivo")
-    // porque a versão de navegador inventada não bate com nada real.
-    browser: Browsers.ubuntu('Chrome'),
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
     version
   });
 
-  let pairingSolicitado = false;
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update;
-
-    // Pede o código só quando o socket já está em "connecting" (ou já
-    // emitiu qr) — pedir cedo demais (ex: logo após makeWASocket) é
-    // uma das causas do código ser gerado mas recusado no celular.
-    if (usarPairingCode && !pairingSolicitado && (connection === 'connecting' || qr)) {
-      pairingSolicitado = true;
+  if (usarPairingCode) {
+    // Espera meio segundo pro socket inicializar antes de pedir o código
+    setTimeout(async () => {
       try {
         const codigo = await sock.requestPairingCode(process.env.PAIRING_PHONE);
+        statusAtual = `aguardando pareamento (código: ${codigo})`;
         console.log('==================================================');
         console.log(`🔑 CÓDIGO DE PAREAMENTO: ${codigo}`);
-        console.log('⏱️  Digite AGORA no celular — o código expira em ~60s.');
         console.log('No celular do bot: WhatsApp > Aparelhos conectados >');
         console.log('Conectar um aparelho > Conectar com número de telefone');
         console.log('==================================================');
       } catch (e) {
         console.log('Erro ao gerar código de pareamento:', e.message);
       }
-    }
+    }, 3000);
+  }
 
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect, qr } = update;
     if (qr && !usarPairingCode) {
       console.log('📱 Escaneie o QR Code abaixo com o WhatsApp do número do bot:');
       qrcode.generate(qr, { small: true });
@@ -253,11 +260,13 @@ async function iniciar() {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       console.log(`Conexão encerrada. Código: ${statusCode}. Motivo: ${lastDisconnect?.error?.message || 'desconhecido'}. Reconectar? ${shouldReconnect}`);
+      statusAtual = shouldReconnect ? 'reconectando' : 'desconectado (logout)';
       if (shouldReconnect) {
         setTimeout(() => iniciar(), 5000); // espera 5s antes de tentar de novo
       }
     } else if (connection === 'open') {
       console.log('✅ Bot conectado ao WhatsApp.');
+      statusAtual = 'conectado';
     }
   });
 
@@ -301,5 +310,16 @@ async function iniciar() {
     }
   });
 }
+
+// ---------- Proteção contra crash silencioso ----------
+// Em vez de deixar o processo morrer (e o Railway reiniciar o
+// container, apagando a sessão se AUTH_DIR não for persistente),
+// apenas loga o erro e mantém o bot rodando.
+process.on('unhandledRejection', (err) => {
+  console.error('⚠️  Promise rejeitada sem tratamento:', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️  Exceção não tratada:', err);
+});
 
 iniciar().catch(err => console.error('Erro ao iniciar o bot:', err));
