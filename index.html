@@ -777,13 +777,46 @@ function parseValor(v){
   return isNaN(n) ? 0 : n;
 }
 
-// Cor consistente por motivo, só pra facilitar a leitura visual — não afeta os dados
+// Mesma ideia do horário: o valor chega digitado de formas diferentes
+// ("160", "160,00", "R$ 160.00"...). Reaproveita o parseValor já existente
+// e sempre mostra "R$ X,XX" com 2 casas — sem alterar o dado salvo.
+function formatarValor(v){
+  if(!v) return '—';
+  const n = parseValor(v);
+  if(!n && n !== 0) return '—';
+  if(n === 0) return '—';
+  return 'R$ ' + n.toFixed(2).replace('.', ',');
+}
+
+// Cor consistente por motivo, só pra facilitar a leitura visual — não afeta os dados.
+// Normaliza (minúsculo + espaços) antes de gerar a cor, senão "Bico fixo",
+// "Bico Fixo" e "bico fixo" (que são o mesmo motivo, só digitado diferente
+// no grupo do WhatsApp) apareceriam cada um com uma cor de tag diferente.
 const ACCENTS = ['#f2b705','#00e5ff','#a06bff','#34d399','#ff5577','#38bdf8'];
 function motivoColor(motivo){
   if(!motivo) return ACCENTS[0];
+  const chave = motivo.trim().toLowerCase();
   let hash = 0;
-  for(let i=0;i<motivo.length;i++){ hash = motivo.charCodeAt(i) + ((hash<<5)-hash); }
+  for(let i=0;i<chave.length;i++){ hash = chave.charCodeAt(i) + ((hash<<5)-hash); }
   return ACCENTS[Math.abs(hash) % ACCENTS.length];
+}
+
+// Normaliza o horário pra um formato único de exibição: "HH:MM às HH:MM".
+// O bot do WhatsApp recebe o texto digitado à mão no grupo, então chega em
+// formatos variados: "6 as 18h", "06:00as 18:00", "7:30 as 17 :00" etc.
+// Essa função entende essas variações e sempre mostra do mesmo jeito na
+// tela, no CSV, no Excel e no PDF — sem alterar o dado original salvo.
+// Se não conseguir reconhecer um padrão de horário, devolve o texto original,
+// pra nunca esconder ou distorcer uma informação que fuja do previsto.
+function normalizarHorario(h){
+  if(!h) return '—';
+  const texto = h.toString().trim();
+  const m = texto.match(/(\d{1,2})(?:[:.](\d{2}))?\s*h?\s*(?:as|às)\s*(\d{1,2})(?:[:.](\d{2}))?\s*h?/i);
+  if(!m) return texto;
+  const pad2 = n => String(n).padStart(2, '0');
+  const h1 = pad2(m[1]), min1 = pad2(m[2] || '00');
+  const h2 = pad2(m[3]), min2 = pad2(m[4] || '00');
+  return `${h1}:${min1} às ${h2}:${min2}`;
 }
 
 function esc(v){
@@ -826,8 +859,8 @@ function renderizar(){
         <td class="cell-colab" data-label="Colaborador"><span class="colab">${esc(d.colaborador)}</span></td>
         <td data-label="Posto/Contrato">${esc(d.contrato)}</td>
         <td data-label="Motivo"><span class="motivo-tag" style="--tc:${cor}">${esc(d.motivo)}</span></td>
-        <td data-label="Horário">${esc(d.horario)}</td>
-        <td class="valor" data-label="Valor">${d.valor ? 'R$ ' + esc(d.valor) : '—'}</td>
+        <td data-label="Horário">${esc(normalizarHorario(d.horario))}</td>
+        <td class="valor" data-label="Valor">${esc(formatarValor(d.valor))}</td>
         <td class="cell-actions" data-label="">
           <button class="edit" onclick="editar('${d.id}')" title="Editar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -885,8 +918,8 @@ function renderHistorico(){
       <td class="cell-colab" data-label="Colaborador"><span class="colab">${esc(d.colaborador)}</span></td>
       <td data-label="Posto/Contrato">${esc(d.contrato)}</td>
       <td data-label="Motivo"><span class="motivo-tag" style="--tc:${cor}">${esc(d.motivo)}</span></td>
-      <td data-label="Horário">${esc(d.horario)}</td>
-      <td class="valor" data-label="Valor">${d.valor ? 'R$ ' + esc(d.valor) : '—'}</td>
+      <td data-label="Horário">${esc(normalizarHorario(d.horario))}</td>
+      <td class="valor" data-label="Valor">${esc(formatarValor(d.valor))}</td>
       <td data-label="Origem">${esc(d.origem || 'bot')}</td>
       <td data-label="Registrado em">${formatarCriadoEm(d.criadoEm)}</td>
       <td class="cell-actions" data-label="">
@@ -940,7 +973,7 @@ document.getElementById('btnLimpar').addEventListener('click', () => {
 document.getElementById('btnExport').addEventListener('click', () => {
   const dados = filtrar();
   const header = ['Data','Colaborador','Posto/Contrato','Motivo','Horário','Valor'];
-  const linhas = dados.map(d => [d.data, d.colaborador, d.contrato, d.motivo, d.horario, d.valor]
+  const linhas = dados.map(d => [d.data, d.colaborador, d.contrato, d.motivo, normalizarHorario(d.horario), formatarValor(d.valor)]
     .map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(';'));
   const csv = [header.join(';'), ...linhas].join('\n');
   const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
@@ -968,7 +1001,7 @@ const HIST_HEADER = ['Data','Colaborador','Posto/Contrato','Motivo','Horário','
 function dadosHistoricoLinhas(){
   return dadosHistoricoFiltrados().map(d => [
     d.data || '', d.colaborador || '', d.contrato || '', d.motivo || '',
-    d.horario || '', d.valor ? `R$ ${d.valor}` : '—',
+    normalizarHorario(d.horario), formatarValor(d.valor),
     d.origem || 'bot', formatarCriadoEm(d.criadoEm)
   ]);
 }
