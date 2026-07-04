@@ -216,6 +216,26 @@
 
   td.cell-actions{display:flex; gap:8px; align-items:center; justify-content:flex-end;}
 
+  /* ---------- COLUNAS CONGELADAS (Histórico) ---------- */
+  /* Congela Data + Colaborador como um bloco só à esquerda, para a coluna
+     Colaborador não ficar "flutuando" com um vão no lugar da Data ao rolar. */
+  table.tabela-historico td.cell-data, table.tabela-historico th:nth-child(1){
+    position:sticky; left:0; z-index:2;
+    width:96px; min-width:96px; max-width:96px;
+    background:var(--surface);
+  }
+  table.tabela-historico td.cell-colab, table.tabela-historico th:nth-child(2){
+    position:sticky; left:96px; z-index:2;
+    width:168px; min-width:168px; max-width:168px;
+    background:var(--surface);
+    box-shadow:5px 0 8px -6px rgba(0,0,0,.55);
+  }
+  table.tabela-historico thead th:nth-child(1),
+  table.tabela-historico thead th:nth-child(2){
+    z-index:3; background:var(--surface2);
+  }
+  table.tabela-historico td.cell-colab .colab{white-space:normal; line-height:1.2;}
+
   /* ---------- MODAL ---------- */
   .modal-bg{
     position:fixed; inset:0; background:rgba(4,7,13,.7); backdrop-filter:blur(4px); display:none;
@@ -272,47 +292,61 @@
     .btn-row{width:100%;}
     .btn-row .btn{flex:1; justify-content:center;}
 
-    table, thead, tbody, th, td, tr{display:block; width:100%; min-width:0;}
-    thead{display:none;}
-    tbody tr{
+    /* A conversão em "cards" no mobile vale só para a tabela marcada .cards-mobile (Lançamentos) */
+    table.cards-mobile, table.cards-mobile thead, table.cards-mobile tbody,
+    table.cards-mobile th, table.cards-mobile td, table.cards-mobile tr{
+      display:block; width:100%; min-width:0;
+    }
+    table.cards-mobile thead{display:none;}
+    table.cards-mobile tbody tr{
       background:var(--surface2); border:1px solid var(--border); border-radius:14px;
       margin:12px; padding:14px 16px 4px; position:relative;
     }
-    tbody tr:hover{background:var(--surface2);}
+    table.cards-mobile tbody tr:hover{background:var(--surface2);}
 
     /* cabeçalho do card: data no topo, nome do colaborador em destaque */
-    td.cell-data{
+    table.cards-mobile td.cell-data{
       display:flex; justify-content:flex-end; padding:0 0 6px; border-bottom:none; white-space:normal;
     }
-    td.cell-data::before{content:'';}
-    td.cell-colab{
+    table.cards-mobile td.cell-data::before{content:'';}
+    table.cards-mobile td.cell-colab{
       display:block; padding:0 0 12px; margin-bottom:8px;
       border-bottom:1px solid var(--border-soft); white-space:normal;
     }
-    td.cell-colab::before{content:'';}
-    td.cell-colab .colab{font-size:17px; display:block; line-height:1.25;}
+    table.cards-mobile td.cell-colab::before{content:'';}
+    table.cards-mobile td.cell-colab .colab{font-size:17px; display:block; line-height:1.25;}
 
     /* demais campos: um por linha, rótulo em cima e valor embaixo */
-    td:not(.cell-data):not(.cell-colab):not(.cell-actions){
+    table.cards-mobile td:not(.cell-data):not(.cell-colab):not(.cell-actions){
       display:flex; flex-direction:column; align-items:flex-start; gap:4px;
       padding:10px 0; border-bottom:1px solid var(--border-soft); text-align:left; white-space:normal;
     }
-    td:not(.cell-data):not(.cell-colab):not(.cell-actions)::before{
+    table.cards-mobile td:not(.cell-data):not(.cell-colab):not(.cell-actions)::before{
       content:attr(data-label); font-size:10px; text-transform:uppercase; color:var(--muted);
       font-weight:700; letter-spacing:.5px;
     }
-    tbody tr td:last-of-type{border-bottom:none;}
-    tbody tr:last-child{margin-bottom:20px;}
+    table.cards-mobile tbody tr td:last-of-type{border-bottom:none;}
+    table.cards-mobile tbody tr:last-child{margin-bottom:20px;}
 
     .hist-count{padding:13px 14px 0; font-size:11px;}
 
-    td.cell-actions{
+    table.cards-mobile td.cell-actions{
       display:flex; justify-content:flex-end; padding:10px 0 12px; border-bottom:none; margin-top:2px;
     }
-    td.cell-actions::before{content:'';}
-    td.valor{font-size:16px;}
-    .motivo-tag{font-size:12.5px;}
-    .scroll-hint{display:none !important;}
+    table.cards-mobile td.cell-actions::before{content:'';}
+    table.cards-mobile td.valor{font-size:16px;}
+    table.cards-mobile .motivo-tag{font-size:12.5px;}
+    .cards-mobile ~ .scroll-hint, table.cards-mobile + .scroll-hint{display:none !important;}
+
+    /* Histórico continua como tabela real, com rolagem horizontal no mobile */
+    table.tabela-historico{min-width:920px; font-size:12.5px;}
+    table.tabela-historico th{padding:11px 12px; font-size:9.5px;}
+    table.tabela-historico td{padding:11px 12px;}
+    table.tabela-historico td.cell-colab .colab{font-size:13.5px;}
+    table.tabela-historico .motivo-tag{font-size:11px; padding:3px 9px;}
+    #viewHistorico .scroll-hint{
+      display:block !important; background:var(--surface2); border-top:1px solid var(--border);
+    }
 
     .modal{padding:20px;}
     .modal .row{flex-direction:column; gap:0;}
@@ -456,7 +490,7 @@
 
   <div class="data-card">
     <div class="table-wrap">
-      <table>
+      <table class="cards-mobile">
         <thead>
           <tr>
             <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
@@ -502,7 +536,7 @@
     <div class="data-card">
       <div class="hist-count"><span id="histCount">0</span> registros</div>
       <div class="table-wrap">
-        <table>
+        <table class="tabela-historico">
           <thead>
             <tr>
               <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
