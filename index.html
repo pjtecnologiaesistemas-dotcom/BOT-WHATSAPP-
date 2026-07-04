@@ -233,27 +233,40 @@
     thead{display:none;}
     tbody tr{
       background:var(--surface2); border:1px solid var(--border); border-radius:14px;
-      margin:12px; padding:4px 0; position:relative;
+      margin:12px; padding:14px 16px 4px; position:relative;
     }
     tbody tr:hover{background:var(--surface2);}
-    td{
-      display:flex; justify-content:space-between; align-items:center; gap:10px;
-      text-align:right; padding:9px 14px; border-bottom:1px solid var(--border-soft); white-space:normal;
+
+    /* cabeçalho do card: data no topo, nome do colaborador em destaque */
+    td.cell-data{
+      display:flex; justify-content:flex-end; padding:0 0 6px; border-bottom:none; white-space:normal;
     }
-    tbody tr:last-child{margin-bottom:20px;}
-    td:last-child{border-bottom:none;}
-    td::before{
-      content:attr(data-label); font-size:10.5px; text-transform:uppercase; color:var(--muted);
-      text-align:left; font-weight:700; letter-spacing:.4px; flex-shrink:0;
-    }
-    td.cell-data{padding-bottom:0; border-bottom:none;}
     td.cell-data::before{content:'';}
-    td.cell-data .data-cell{margin-left:auto;}
-    td.cell-colab{padding-top:2px;}
+    td.cell-colab{
+      display:block; padding:0 0 12px; margin-bottom:8px;
+      border-bottom:1px solid var(--border-soft); white-space:normal;
+    }
     td.cell-colab::before{content:'';}
-    td.cell-colab .colab{font-size:16px; margin-left:auto;}
-    td.cell-actions{justify-content:center; padding:11px 14px 13px;}
+    td.cell-colab .colab{font-size:17px; display:block; line-height:1.25;}
+
+    /* demais campos: um por linha, rótulo em cima e valor embaixo */
+    td:not(.cell-data):not(.cell-colab):not(.cell-actions){
+      display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+      padding:10px 0; border-bottom:1px solid var(--border-soft); text-align:left; white-space:normal;
+    }
+    td:not(.cell-data):not(.cell-colab):not(.cell-actions)::before{
+      content:attr(data-label); font-size:10px; text-transform:uppercase; color:var(--muted);
+      font-weight:700; letter-spacing:.5px;
+    }
+    tbody tr td:last-of-type{border-bottom:none;}
+    tbody tr:last-child{margin-bottom:20px;}
+
+    td.cell-actions{
+      display:flex; justify-content:flex-end; padding:10px 0 12px; border-bottom:none; margin-top:2px;
+    }
     td.cell-actions::before{content:'';}
+    td.valor{font-size:16px;}
+    .motivo-tag{font-size:12.5px;}
     .scroll-hint{display:none !important;}
 
     .modal{padding:20px;}
