@@ -63,33 +63,12 @@ const {
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
 const pino = require('pino');
-const http = require('http');
-const path = require('path');
 
 // ===================== CONFIGURAÇÃO =====================
 const GROUP_NAME = 'Movimentações Diárias';
 const COLLECTION = 'lancamentos';
 const USE_AI_FALLBACK = !!process.env.ANTHROPIC_API_KEY;
-
-// Pasta onde a sessão do WhatsApp é salva. Se você criar um Volume no
-// Railway, aponte AUTH_DIR para o caminho montado (ex: /data/auth_info)
-// para a sessão sobreviver a reinícios/redeploys. Sem isso, o disco é
-// apagado a cada restart e o bot pede pareamento de novo toda vez.
-const AUTH_DIR = process.env.AUTH_DIR || path.join(__dirname, 'auth_info');
 // ==========================================================
-
-// ---------- Servidor HTTP mínimo (obrigatório no Railway) ----------
-// Sem isso, se o serviço estiver configurado como "Web" no Railway, o
-// healthcheck nunca responde e o Railway mata o container (SIGTERM)
-// antes mesmo de você conseguir digitar o código de pareamento.
-const PORT = process.env.PORT || 3000;
-let statusAtual = 'iniciando';
-http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end(`Bot de lançamentos ativo. Status: ${statusAtual}`);
-}).listen(PORT, () => {
-  console.log(`🌐 Servidor HTTP de healthcheck ouvindo na porta ${PORT}`);
-});
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -221,7 +200,7 @@ async function processarMensagem(texto, whatsappMsgId) {
 
 // ---------- Conexão com o WhatsApp ----------
 async function iniciar() {
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
   const { version } = await fetchLatestBaileysVersion();
   const usarPairingCode = !!process.env.PAIRING_PHONE && !state.creds.registered;
 
@@ -238,7 +217,6 @@ async function iniciar() {
     setTimeout(async () => {
       try {
         const codigo = await sock.requestPairingCode(process.env.PAIRING_PHONE);
-        statusAtual = `aguardando pareamento (código: ${codigo})`;
         console.log('==================================================');
         console.log(`🔑 CÓDIGO DE PAREAMENTO: ${codigo}`);
         console.log('No celular do bot: WhatsApp > Aparelhos conectados >');
@@ -260,13 +238,11 @@ async function iniciar() {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       console.log(`Conexão encerrada. Código: ${statusCode}. Motivo: ${lastDisconnect?.error?.message || 'desconhecido'}. Reconectar? ${shouldReconnect}`);
-      statusAtual = shouldReconnect ? 'reconectando' : 'desconectado (logout)';
       if (shouldReconnect) {
         setTimeout(() => iniciar(), 5000); // espera 5s antes de tentar de novo
       }
     } else if (connection === 'open') {
       console.log('✅ Bot conectado ao WhatsApp.');
-      statusAtual = 'conectado';
     }
   });
 
@@ -310,16 +286,5 @@ async function iniciar() {
     }
   });
 }
-
-// ---------- Proteção contra crash silencioso ----------
-// Em vez de deixar o processo morrer (e o Railway reiniciar o
-// container, apagando a sessão se AUTH_DIR não for persistente),
-// apenas loga o erro e mantém o bot rodando.
-process.on('unhandledRejection', (err) => {
-  console.error('⚠️  Promise rejeitada sem tratamento:', err);
-});
-process.on('uncaughtException', (err) => {
-  console.error('⚠️  Exceção não tratada:', err);
-});
 
 iniciar().catch(err => console.error('Erro ao iniciar o bot:', err));
