@@ -86,12 +86,13 @@
   .kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-top:2px;}
 
   .table-wrap{
-    background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:auto;
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    overflow-x:auto; overflow-y:visible; -webkit-overflow-scrolling:touch;
   }
-  table{width:100%; border-collapse:collapse; font-size:13px;}
+  table{width:100%; min-width:760px; border-collapse:collapse; font-size:13px;}
   th{
     text-align:left; padding:12px 14px; color:var(--muted); font-weight:600;
-    text-transform:uppercase; font-size:10.5px; letter-spacing:.5px;
+    text-transform:uppercase; font-size:10.5px; letter-spacing:.5px; white-space:nowrap;
     border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card);
   }
   td{padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.04); white-space:nowrap;}
@@ -102,11 +103,10 @@
   }
   .valor{color:var(--ok); font-weight:600;}
   .empty{padding:40px; text-align:center; color:var(--muted); font-size:13px;}
-  .del, .edit{background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; margin:0 4px;}
+  .del{background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px;}
   .del:hover{color:var(--danger);}
-  .edit:hover{color:var(--cyan);}
 
-  /* Modal de lançamento manual / edição */
+  /* Modal de lançamento manual */
   .modal-bg{
     position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
     align-items:center; justify-content:center; z-index:50; padding:16px; backdrop-filter:blur(3px);
@@ -125,6 +125,11 @@
   @media (max-width:640px){
     .toolbar{flex-direction:column; align-items:stretch;}
     .field input, .field select{min-width:0; width:100%;}
+    .scroll-hint{display:block;}
+  }
+  .scroll-hint{
+    display:none; text-align:center; font-size:11px; color:var(--muted);
+    margin-top:6px;
   }
 </style>
 </head>
@@ -195,7 +200,7 @@
     <thead>
       <tr>
         <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
-        <th>Motivo</th><th>Horário</th><th>Valor</th><th>Ações</th>
+        <th>Motivo</th><th>Horário</th><th>Valor</th><th></th>
       </tr>
     </thead>
     <tbody id="tbody">
@@ -203,11 +208,11 @@
     </tbody>
   </table>
 </div>
+<div class="scroll-hint">← Arraste para o lado para ver todas as colunas →</div>
 
 <div class="modal-bg" id="modalBg">
   <div class="modal">
-    <h2 id="modalTitle">Novo lançamento manual</h2>
-    <input type="hidden" id="editId">
+    <h2>Novo lançamento manual</h2>
     <div class="field"><label>Data</label><input type="date" id="mData"></div>
     <div class="field"><label>Colaborador (FT)</label><input type="text" id="mColab" placeholder="Nome completo"></div>
     <div class="field"><label>Posto / Contrato</label><input type="text" id="mContrato" placeholder="Ex: Pantanal"></div>
@@ -225,7 +230,9 @@
 
 <script>
 // ======================================================
-// CONFIGURAÇÃO FIREBASE
+// CONFIGURAÇÃO FIREBASE — troque pelos dados do seu projeto
+// (pode reaproveitar o mesmo projeto do Controle de Acesso
+// ou da FT, criando só a coleção "lancamentos")
 // ======================================================
 const firebaseConfig = {
   apiKey: "AIzaSyCipzGGPY1U-Td8sJ1mAnd9VoIXQne4mrE",
@@ -236,7 +243,7 @@ const firebaseConfig = {
   appId: "1:406562279464:web:3f427e5a722932fd8f251d"
 };
 
-const COLLECTION = "lancamentos";
+const COLLECTION = "lancamentos"; // mesmo nome que o bot vai usar para gravar
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
@@ -329,10 +336,7 @@ function renderizar(){
         <td><span class="motivo-tag">${d.motivo || '—'}</span></td>
         <td>${d.horario || '—'}</td>
         <td class="valor">${d.valor ? 'R$ ' + d.valor : '—'}</td>
-        <td>
-          <button class="edit" onclick="editar('${d.id}')" title="Editar">✎</button>
-          <button class="del" onclick="excluir('${d.id}')" title="Excluir">✕</button>
-        </td>
+        <td><button class="del" onclick="excluir('${d.id}')" title="Excluir">✕</button></td>
       </tr>
     `).join('');
   }
@@ -348,20 +352,6 @@ function excluir(id){
   if(confirm('Excluir este lançamento?')){
     db.collection(COLLECTION).doc(id).delete();
   }
-}
-
-function editar(id){
-  const doc = allDocs.find(d => d.id === id);
-  if(!doc) return;
-  document.getElementById('editId').value = id;
-  document.getElementById('modalTitle').textContent = 'Editar lançamento';
-  document.getElementById('mData').value = doc.dataISO || '';
-  document.getElementById('mColab').value = doc.colaborador || '';
-  document.getElementById('mContrato').value = doc.contrato || '';
-  document.getElementById('mMotivo').value = doc.motivo || '';
-  document.getElementById('mHorario').value = doc.horario || '';
-  document.getElementById('mValor').value = doc.valor || '';
-  modalBg.classList.add('open');
 }
 
 ['fBusca','fDataIni','fDataFim','fMotivo'].forEach(id => {
@@ -391,19 +381,15 @@ document.getElementById('btnExport').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// Modal manual / edição
+// Modal manual
 const modalBg = document.getElementById('modalBg');
 document.getElementById('btnNovo').addEventListener('click', () => {
-  document.getElementById('editId').value = '';
-  document.getElementById('modalTitle').textContent = 'Novo lançamento manual';
   document.getElementById('mData').value = new Date().toISOString().slice(0,10);
-  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
   modalBg.classList.add('open');
 });
 document.getElementById('mCancelar').addEventListener('click', () => modalBg.classList.remove('open'));
 
 document.getElementById('mSalvar').addEventListener('click', async () => {
-  const id = document.getElementById('editId').value;
   const dataISO = document.getElementById('mData').value;
   const colaborador = document.getElementById('mColab').value.trim();
   const contrato = document.getElementById('mContrato').value.trim();
@@ -417,20 +403,15 @@ document.getElementById('mSalvar').addEventListener('click', async () => {
   }
 
   const [ano, mes, dia] = dataISO.split('-');
-  const dados = {
+  await db.collection(COLLECTION).add({
     dataISO, data: `${dia}/${mes}/${ano}`,
     colaborador, contrato, motivo, horario, valor,
     origem: 'manual',
     criadoEm: firebase.firestore.FieldValue.serverTimestamp()
-  };
-
-  if(id){
-    await db.collection(COLLECTION).doc(id).update(dados);
-  } else {
-    await db.collection(COLLECTION).add(dados);
-  }
+  });
 
   modalBg.classList.remove('open');
+  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
 });
 
 modalBg.addEventListener('click', e => { if(e.target === modalBg) modalBg.classList.remove('open'); });
