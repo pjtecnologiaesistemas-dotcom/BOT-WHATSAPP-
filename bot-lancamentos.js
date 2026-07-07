@@ -8,12 +8,17 @@
  *  4. Se não bater no padrão, usa a API da Anthropic como fallback
  *  5. Grava o resultado no Firestore, na coleção "lancamentos"
  *     (mesma coleção que o painel HTML já está lendo)
+ *  6. A sessão do WhatsApp (credenciais/chaves) fica salva no Firestore
+ *     (coleção "whatsapp_auth"), não em disco — então ela sobrevive a
+ *     redeploys no Railway. Você só precisa parear uma vez.
  *
  * Formato esperado da mensagem (o que você já usa no grupo):
  *
  *   📌 Movimentação realizada em 02/07/2026
  *   👤 FT: Carlos Lopes
  *   ⚠️ Motivo: Extra
+ *   ℹ️ Colaborador ausente: (opcional — preenchido em cobertura de
+ *      férias, falta com/sem justificativa, atestado ou suspensão)
  *   💵 Valor R$: 160,00
  *   🕒 Horário: 18:00 as 06:00
  *   📄 Contrato: Pantanal
@@ -56,9 +61,11 @@ if (!globalThis.crypto) {
 
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  initAuthCreds,
+  BufferJSON,
+  proto
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
@@ -78,6 +85,66 @@ let anthropic = null;
 if (USE_AI_FALLBACK) {
   const Anthropic = require('@anthropic-ai/sdk');
   anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
+
+// ---------- Sessão do WhatsApp persistida no Firestore ----------
+// Substitui o useMultiFileAuthState (que grava em disco). No Railway o
+// disco é apagado a cada novo deploy, então guardar a sessão aqui garante
+// que ela sobrevive a redeploys — só precisa parear uma vez.
+const AUTH_DOC = db.collection('whatsapp_auth').doc('bot-lancamentos');
+const AUTH_KEYS = AUTH_DOC.collection('keys');
+
+async function useFirestoreAuthState() {
+  async function lerCreds() {
+    const snap = await AUTH_DOC.get();
+    if (snap.exists && snap.data()?.creds) {
+      return JSON.parse(snap.data().creds, BufferJSON.reviver);
+    }
+    return initAuthCreds();
+  }
+
+  const creds = await lerCreds();
+
+  const saveCreds = async () => {
+    await AUTH_DOC.set({ creds: JSON.stringify(creds, BufferJSON.replacer) }, { merge: true });
+  };
+
+  return {
+    state: {
+      creds,
+      keys: {
+        get: async (type, ids) => {
+          const resultado = {};
+          await Promise.all(ids.map(async (id) => {
+            const doc = await AUTH_KEYS.doc(`${type}-${id}`).get();
+            if (!doc.exists) return;
+            let valor = JSON.parse(doc.data().value, BufferJSON.reviver);
+            if (type === 'app-state-sync-key' && valor) {
+              valor = proto.Message.AppStateSyncKeyData.fromObject(valor);
+            }
+            resultado[id] = valor;
+          }));
+          return resultado;
+        },
+        set: async (data) => {
+          const tarefas = [];
+          for (const categoria in data) {
+            for (const id in data[categoria]) {
+              const valor = data[categoria][id];
+              const ref = AUTH_KEYS.doc(`${categoria}-${id}`);
+              tarefas.push(
+                valor
+                  ? ref.set({ value: JSON.stringify(valor, BufferJSON.replacer) })
+                  : ref.delete().catch(() => {})
+              );
+            }
+          }
+          await Promise.all(tarefas);
+        }
+      }
+    },
+    saveCreds
+  };
 }
 
 // ---------- Extração via REGEX (formato padrão do grupo) ----------
@@ -104,7 +171,10 @@ function extrairComRegex(texto) {
     return '';
   }
 
-  const colaborador = extrairCampo('(?:FT|Colaborador)');
+  // Nota: usamos (?!\s*ausente) para o FT/Colaborador principal nunca
+  // acabar pegando por engano a linha "Colaborador ausente:" (que também
+  // começa com a palavra "Colaborador", mas é um campo diferente).
+  const colaborador = extrairCampo('(?:FT|Colaborador)(?!\\s*ausente)');
   if (!colaborador) return null; // sem colaborador válido, não é um lançamento
 
   const [dia, mes, ano] = dataMatch[1].split('/');
@@ -113,11 +183,8 @@ function extrairComRegex(texto) {
     data: dataMatch[1],
     colaborador,
     motivo: extrairCampo('Motivo'),
-    // Pega tudo entre "Valor" e o primeiro número — não importa se vem
-    // "Valor R$: 160,00" ou "Valor: R$160,00" (ordem invertida, sem
-    // espaço), "Valor 160,00" sem R$, etc. Qualquer combinação de R$,
-    // dois-pontos, espaço e asterisco entre o rótulo e o número é aceita.
-    valor: (limpo.match(/Valor[^\d]*([\d.,]+)/i) || [])[1] || '',
+    ausente: extrairCampo('(?:Colaborador\\s+ausente|Ausente)'),
+    valor: (limpo.match(/Valor\s*R?\$?\s*:?\s*\*?\s*([\d.,]+)/i) || [])[1] || '',
     horario: extrairCampo('Hor[áa]rio'),
     contrato: extrairCampo('Contrato'),
     origem: 'whatsapp-regex'
@@ -134,8 +201,8 @@ async function extrairComIA(texto) {
     messages: [{
       role: 'user',
       content: `Extraia os campos da mensagem abaixo, enviada num grupo de WhatsApp de uma empresa de segurança privada. Responda APENAS com um JSON válido, sem texto adicional, no formato:
-{"dataISO":"AAAA-MM-DD","data":"DD/MM/AAAA","colaborador":"","motivo":"","valor":"","horario":"","contrato":""}
-Se algum campo não existir na mensagem, deixe como string vazia. Use a data de hoje (${new Date().toLocaleDateString('pt-BR')}) se nenhuma data for mencionada.
+{"dataISO":"AAAA-MM-DD","data":"DD/MM/AAAA","colaborador":"","motivo":"","ausente":"","valor":"","horario":"","contrato":""}
+O campo "ausente" é o nome do colaborador que está de férias, de atestado, suspenso ou faltou (quem está sendo coberto) — deixe vazio se a mensagem não mencionar isso. Se algum outro campo não existir na mensagem, deixe como string vazia. Use a data de hoje (${new Date().toLocaleDateString('pt-BR')}) se nenhuma data for mencionada.
 
 Mensagem:
 """
@@ -204,7 +271,7 @@ async function processarMensagem(texto, whatsappMsgId) {
 
 // ---------- Conexão com o WhatsApp ----------
 async function iniciar() {
-  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  const { state, saveCreds } = await useFirestoreAuthState();
   const { version } = await fetchLatestBaileysVersion();
   const usarPairingCode = !!process.env.PAIRING_PHONE && !state.creds.registered;
 
