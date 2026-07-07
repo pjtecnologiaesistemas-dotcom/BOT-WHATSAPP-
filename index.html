@@ -383,6 +383,10 @@
      (Motivo, Posto/Contrato, Colaborador) quebram linha em vez de forçar o scroll lateral.
      Nenhuma coluna é removida — todas as 10 continuam presentes, só o espaço é redistribuído. */
   @media (min-width:901px){
+    /* O card do Histórico "quebra" o limite normal do container (.wrap) e
+       ocupa as duas bordas da tela — só nessa aba, a de Lançamentos continua igual. */
+    .wrap.wrap-wide{max-width:none; width:100%; padding-left:28px; padding-right:28px;}
+
     #viewHistorico .table-wrap{overflow-x:hidden;}
     table.tabela-historico{
       table-layout:fixed; width:100%; min-width:0;
@@ -391,21 +395,21 @@
       padding:12px 10px; white-space:normal; word-break:break-word; vertical-align:top;
     }
     table.tabela-historico td.cell-data, table.tabela-historico th:nth-child(1){
-      position:static; width:7.5%; min-width:0; max-width:none; white-space:nowrap;
+      position:static; width:7%; min-width:0; max-width:none; white-space:nowrap;
     }
     table.tabela-historico td.cell-colab, table.tabela-historico th:nth-child(2){
-      position:static; width:13%; min-width:0; max-width:none; box-shadow:none;
+      position:static; width:12%; min-width:0; max-width:none; box-shadow:none;
     }
     table.tabela-historico th:nth-child(3), table.tabela-historico td:nth-child(3){width:13%;}
-    table.tabela-historico th:nth-child(4), table.tabela-historico td:nth-child(4){width:14.5%;}
-    table.tabela-historico th:nth-child(5), table.tabela-historico td:nth-child(5){width:11%;}
-    table.tabela-historico th:nth-child(6), table.tabela-historico td:nth-child(6){width:9%; white-space:nowrap;}
-    table.tabela-historico th:nth-child(7), table.tabela-historico td:nth-child(7){width:8%; white-space:nowrap;}
-    table.tabela-historico th:nth-child(8), table.tabela-historico td:nth-child(8){width:8%;}
-    table.tabela-historico th:nth-child(9), table.tabela-historico td:nth-child(9){width:9%; white-space:nowrap;}
-    table.tabela-historico th:nth-child(10), table.tabela-historico td:nth-child(10){width:7%; white-space:nowrap;}
+    table.tabela-historico th:nth-child(4), table.tabela-historico td:nth-child(4){width:11%;}
+    table.tabela-historico th:nth-child(5), table.tabela-historico td:nth-child(5){width:9%;}
+    table.tabela-historico th:nth-child(6), table.tabela-historico td:nth-child(6){width:8%; white-space:nowrap;}
+    table.tabela-historico th:nth-child(7), table.tabela-historico td:nth-child(7){width:7%; white-space:nowrap;}
+    table.tabela-historico th:nth-child(8), table.tabela-historico td:nth-child(8){width:9%; white-space:nowrap;}
+    table.tabela-historico th:nth-child(9), table.tabela-historico td:nth-child(9){width:12%;}
+    table.tabela-historico th:nth-child(10), table.tabela-historico td:nth-child(10){width:12%; white-space:nowrap;}
     table.tabela-historico .motivo-tag{white-space:normal; display:inline-block; line-height:1.35;}
-    table.tabela-historico td.cell-actions{white-space:nowrap;}
+    table.tabela-historico td.cell-actions{white-space:nowrap; gap:10px;}
     #viewHistorico .scroll-hint{display:none !important;}
   }
 
@@ -1138,6 +1142,7 @@ tabBtnLancamentos.addEventListener('click', () => {
   tabBtnHistorico.setAttribute('aria-selected', 'false');
   viewLancamentos.style.display = '';
   viewHistorico.style.display = 'none';
+  document.querySelector('.wrap').classList.remove('wrap-wide');
 });
 
 tabBtnHistorico.addEventListener('click', () => {
@@ -1147,6 +1152,7 @@ tabBtnHistorico.addEventListener('click', () => {
   tabBtnLancamentos.setAttribute('aria-selected', 'false');
   viewHistorico.style.display = '';
   viewLancamentos.style.display = 'none';
+  document.querySelector('.wrap').classList.add('wrap-wide');
   renderHistorico();
 });
 
