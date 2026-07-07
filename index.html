@@ -377,6 +377,38 @@
     .modal h2{font-size:13px;}
   }
 
+  /* ---------- HISTÓRICO NO COMPUTADOR: todas as colunas lado a lado, sem rolagem horizontal ---------- */
+  /* Em telas de tablet/desktop (acima de 900px) a tabela passa a ocupar 100% da largura
+     do card, com colunas proporcionais (%) em vez de largura fixa em px. Textos longos
+     (Motivo, Posto/Contrato, Colaborador) quebram linha em vez de forçar o scroll lateral.
+     Nenhuma coluna é removida — todas as 10 continuam presentes, só o espaço é redistribuído. */
+  @media (min-width:901px){
+    #viewHistorico .table-wrap{overflow-x:hidden;}
+    table.tabela-historico{
+      table-layout:fixed; width:100%; min-width:0;
+    }
+    table.tabela-historico th, table.tabela-historico td{
+      padding:12px 10px; white-space:normal; word-break:break-word; vertical-align:top;
+    }
+    table.tabela-historico td.cell-data, table.tabela-historico th:nth-child(1){
+      position:static; width:7.5%; min-width:0; max-width:none; white-space:nowrap;
+    }
+    table.tabela-historico td.cell-colab, table.tabela-historico th:nth-child(2){
+      position:static; width:13%; min-width:0; max-width:none; box-shadow:none;
+    }
+    table.tabela-historico th:nth-child(3), table.tabela-historico td:nth-child(3){width:13%;}
+    table.tabela-historico th:nth-child(4), table.tabela-historico td:nth-child(4){width:14.5%;}
+    table.tabela-historico th:nth-child(5), table.tabela-historico td:nth-child(5){width:11%;}
+    table.tabela-historico th:nth-child(6), table.tabela-historico td:nth-child(6){width:9%; white-space:nowrap;}
+    table.tabela-historico th:nth-child(7), table.tabela-historico td:nth-child(7){width:8%; white-space:nowrap;}
+    table.tabela-historico th:nth-child(8), table.tabela-historico td:nth-child(8){width:8%;}
+    table.tabela-historico th:nth-child(9), table.tabela-historico td:nth-child(9){width:9%; white-space:nowrap;}
+    table.tabela-historico th:nth-child(10), table.tabela-historico td:nth-child(10){width:7%; white-space:nowrap;}
+    table.tabela-historico .motivo-tag{white-space:normal; display:inline-block; line-height:1.35;}
+    table.tabela-historico td.cell-actions{white-space:nowrap;}
+    #viewHistorico .scroll-hint{display:none !important;}
+  }
+
   /* Telas muito pequenas em altura ou largura extrema */
   @media (max-width:340px){
     .kpis{grid-template-columns:1fr;}
