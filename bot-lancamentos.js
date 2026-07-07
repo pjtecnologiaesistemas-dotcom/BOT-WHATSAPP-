@@ -269,6 +269,14 @@ async function processarMensagem(texto, whatsappMsgId) {
   await salvarLancamento(dados, whatsappMsgId);
 }
 
+// ---------- Limpa a sessão salva no Firestore (usado quando ela fica inválida) ----------
+async function limparSessaoAuth() {
+  const keysSnap = await AUTH_KEYS.get();
+  await Promise.all(keysSnap.docs.map(doc => doc.ref.delete()));
+  await AUTH_DOC.delete().catch(() => {});
+  console.log('🧹 Sessão antiga apagada do Firestore. Uma nova será criada.');
+}
+
 // ---------- Conexão com o WhatsApp ----------
 async function iniciar() {
   const { state, saveCreds } = await useFirestoreAuthState();
@@ -283,9 +291,14 @@ async function iniciar() {
     version
   });
 
+  let pareamentoSolicitado = false;
+
   if (usarPairingCode) {
-    // Espera meio segundo pro socket inicializar antes de pedir o código
-    setTimeout(async () => {
+    // Só pede o código depois que a conexão realmente ficar pronta pra isso,
+    // em vez de um tempo fixo (que falhava se a conexão fechasse antes).
+    const tentarPedirCodigo = async () => {
+      if (pareamentoSolicitado) return;
+      pareamentoSolicitado = true;
       try {
         const codigo = await sock.requestPairingCode(process.env.PAIRING_PHONE);
         console.log('==================================================');
@@ -296,7 +309,8 @@ async function iniciar() {
       } catch (e) {
         console.log('Erro ao gerar código de pareamento:', e.message);
       }
-    }, 3000);
+    };
+    setTimeout(tentarPedirCodigo, 3000);
   }
 
   sock.ev.on('connection.update', (update) => {
@@ -307,10 +321,17 @@ async function iniciar() {
     }
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      console.log(`Conexão encerrada. Código: ${statusCode}. Motivo: ${lastDisconnect?.error?.message || 'desconhecido'}. Reconectar? ${shouldReconnect}`);
-      if (shouldReconnect) {
-        setTimeout(() => iniciar(), 5000); // espera 5s antes de tentar de novo
+      const deslogado = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+      console.log(`Conexão encerrada. Código: ${statusCode}. Motivo: ${lastDisconnect?.error?.message || 'desconhecido'}.`);
+
+      if (deslogado) {
+        console.log('⚠️  Sessão inválida (401). Limpando e gerando uma sessão nova automaticamente...');
+        limparSessaoAuth()
+          .catch(e => console.error('Erro ao limpar sessão:', e))
+          .finally(() => setTimeout(() => iniciar(), 5000));
+      } else {
+        console.log('Reconectando em 5s...');
+        setTimeout(() => iniciar(), 5000);
       }
     } else if (connection === 'open') {
       console.log('✅ Bot conectado ao WhatsApp.');
