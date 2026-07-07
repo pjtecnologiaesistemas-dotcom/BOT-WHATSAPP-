@@ -494,11 +494,11 @@
         <thead>
           <tr>
             <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
-            <th>Motivo</th><th>Horário</th><th>Valor</th><th></th>
+            <th>Motivo</th><th>Colaborador Ausente</th><th>Horário</th><th>Valor</th><th></th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="7" class="empty">Carregando lançamentos...</td></tr>
+          <tr><td colspan="8" class="empty">Carregando lançamentos...</td></tr>
         </tbody>
       </table>
     </div>
@@ -540,11 +540,11 @@
           <thead>
             <tr>
               <th>Data</th><th>Colaborador (FT)</th><th>Posto/Contrato</th>
-              <th>Motivo</th><th>Horário</th><th>Valor</th><th>Origem</th><th>Registrado em</th><th>Ações</th>
+              <th>Motivo</th><th>Colaborador Ausente</th><th>Horário</th><th>Valor</th><th>Origem</th><th>Registrado em</th><th>Ações</th>
             </tr>
           </thead>
           <tbody id="tbodyHistorico">
-            <tr><td colspan="9" class="empty">Carregando histórico...</td></tr>
+            <tr><td colspan="10" class="empty">Carregando histórico...</td></tr>
           </tbody>
         </table>
       </div>
@@ -564,6 +564,7 @@
     <div class="field"><label>Colaborador (FT)</label><input type="text" id="mColab" placeholder="Nome completo"></div>
     <div class="field"><label>Posto / Contrato</label><input type="text" id="mContrato" placeholder="Ex: Pantanal"></div>
     <div class="field"><label>Motivo</label><input type="text" id="mMotivo" placeholder="Ex: Extra, Falta, Cobertura"></div>
+    <div class="field"><label>Colaborador Ausente <span style="text-transform:none; font-weight:400; opacity:.7;">(se aplicável)</span></label><input type="text" id="mAusente" placeholder="Nome de quem está de férias/falta/atestado"></div>
     <div class="row">
       <div class="field" style="flex:1"><label>Horário</label><input type="text" id="mHorario" placeholder="18:00 as 06:00"></div>
       <div class="field" style="flex:1"><label>Valor R$</label><input type="text" id="mValor" placeholder="160,00"></div>
@@ -831,7 +832,7 @@ function filtrar(){
 
   return allDocs.filter(d => {
     if(busca){
-      const alvo = `${d.colaborador||''} ${d.contrato||''} ${d.motivo||''}`.toLowerCase();
+      const alvo = `${d.colaborador||''} ${d.contrato||''} ${d.motivo||''} ${d.ausente||''}`.toLowerCase();
       if(!alvo.includes(busca)) return false;
     }
     if(dIni && d.dataISO && d.dataISO < dIni) return false;
@@ -846,7 +847,7 @@ function renderizar(){
   const tbody = document.getElementById('tbody');
 
   if(dados.length === 0){
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
       <p>Nenhum lançamento encontrado. Ajuste os filtros ou aguarde novos lançamentos do grupo.</p>
     </td></tr>`;
@@ -859,6 +860,7 @@ function renderizar(){
         <td class="cell-colab" data-label="Colaborador"><span class="colab">${esc(d.colaborador)}</span></td>
         <td data-label="Posto/Contrato">${esc(d.contrato)}</td>
         <td data-label="Motivo"><span class="motivo-tag" style="--tc:${cor}">${esc(d.motivo)}</span></td>
+        <td data-label="Colaborador Ausente">${esc(d.ausente)}</td>
         <td data-label="Horário">${esc(normalizarHorario(d.horario))}</td>
         <td class="valor" data-label="Valor">${esc(formatarValor(d.valor))}</td>
         <td class="cell-actions" data-label="">
@@ -903,7 +905,7 @@ function renderHistorico(){
   if(!tbody) return;
 
   if(dados.length === 0){
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
       <p>Nenhum lançamento no histórico ainda.</p>
     </td></tr>`;
@@ -918,6 +920,7 @@ function renderHistorico(){
       <td class="cell-colab" data-label="Colaborador"><span class="colab">${esc(d.colaborador)}</span></td>
       <td data-label="Posto/Contrato">${esc(d.contrato)}</td>
       <td data-label="Motivo"><span class="motivo-tag" style="--tc:${cor}">${esc(d.motivo)}</span></td>
+      <td data-label="Colaborador Ausente">${esc(d.ausente)}</td>
       <td data-label="Horário">${esc(normalizarHorario(d.horario))}</td>
       <td class="valor" data-label="Valor">${esc(formatarValor(d.valor))}</td>
       <td data-label="Origem">${esc(d.origem || 'bot')}</td>
@@ -952,6 +955,7 @@ function editar(id){
   document.getElementById('mColab').value = d.colaborador || '';
   document.getElementById('mContrato').value = d.contrato || '';
   document.getElementById('mMotivo').value = d.motivo || '';
+  document.getElementById('mAusente').value = d.ausente || '';
   document.getElementById('mHorario').value = d.horario || '';
   document.getElementById('mValor').value = d.valor || '';
   modalBg.classList.add('open');
@@ -972,8 +976,8 @@ document.getElementById('btnLimpar').addEventListener('click', () => {
 
 document.getElementById('btnExport').addEventListener('click', () => {
   const dados = filtrar();
-  const header = ['Data','Colaborador','Posto/Contrato','Motivo','Horário','Valor'];
-  const linhas = dados.map(d => [d.data, d.colaborador, d.contrato, d.motivo, normalizarHorario(d.horario), formatarValor(d.valor)]
+  const header = ['Data','Colaborador','Posto/Contrato','Motivo','Colaborador Ausente','Horário','Valor'];
+  const linhas = dados.map(d => [d.data, d.colaborador, d.contrato, d.motivo, d.ausente, normalizarHorario(d.horario), formatarValor(d.valor)]
     .map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(';'));
   const csv = [header.join(';'), ...linhas].join('\n');
   const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
@@ -992,15 +996,15 @@ function dadosHistoricoFiltrados(){
   const busca = buscaEl ? buscaEl.value.toLowerCase() : '';
   return allDocs.filter(d => {
     if(!busca) return true;
-    const alvo = `${d.colaborador||''} ${d.contrato||''} ${d.motivo||''} ${d.horario||''} ${d.origem||''}`.toLowerCase();
+    const alvo = `${d.colaborador||''} ${d.contrato||''} ${d.motivo||''} ${d.ausente||''} ${d.horario||''} ${d.origem||''}`.toLowerCase();
     return alvo.includes(busca);
   });
 }
 
-const HIST_HEADER = ['Data','Colaborador','Posto/Contrato','Motivo','Horário','Valor','Origem','Registrado em'];
+const HIST_HEADER = ['Data','Colaborador','Posto/Contrato','Motivo','Colaborador Ausente','Horário','Valor','Origem','Registrado em'];
 function dadosHistoricoLinhas(){
   return dadosHistoricoFiltrados().map(d => [
-    d.data || '', d.colaborador || '', d.contrato || '', d.motivo || '',
+    d.data || '', d.colaborador || '', d.contrato || '', d.motivo || '', d.ausente || '',
     normalizarHorario(d.horario), formatarValor(d.valor),
     d.origem || 'bot', formatarCriadoEm(d.criadoEm)
   ]);
@@ -1037,7 +1041,7 @@ document.getElementById('btnExportHistoricoExcel').addEventListener('click', asy
   const linhas = dadosHistoricoLinhas();
   const ws = XLSX.utils.aoa_to_sheet([HIST_HEADER, ...linhas]);
   ws['!cols'] = [
-    {wch:12},{wch:26},{wch:20},{wch:20},{wch:16},{wch:12},{wch:10},{wch:18}
+    {wch:12},{wch:26},{wch:20},{wch:20},{wch:22},{wch:16},{wch:12},{wch:10},{wch:18}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Histórico');
@@ -1120,7 +1124,7 @@ document.getElementById('btnNovo').addEventListener('click', () => {
   editandoId = null;
   document.getElementById('modalTitulo').textContent = 'Novo lançamento manual';
   document.getElementById('mSalvar').textContent = 'Salvar';
-  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
+  ['mColab','mContrato','mMotivo','mAusente','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('mData').value = new Date().toISOString().slice(0,10);
   modalBg.classList.add('open');
 });
@@ -1134,6 +1138,7 @@ document.getElementById('mSalvar').addEventListener('click', async () => {
   const colaborador = document.getElementById('mColab').value.trim();
   const contrato = document.getElementById('mContrato').value.trim();
   const motivo = document.getElementById('mMotivo').value.trim();
+  const ausente = document.getElementById('mAusente').value.trim();
   const horario = document.getElementById('mHorario').value.trim();
   const valor = document.getElementById('mValor').value.trim();
 
@@ -1145,7 +1150,7 @@ document.getElementById('mSalvar').addEventListener('click', async () => {
   const [ano, mes, dia] = dataISO.split('-');
   const dados = {
     dataISO, data: `${dia}/${mes}/${ano}`,
-    colaborador, contrato, motivo, horario, valor
+    colaborador, contrato, motivo, ausente, horario, valor
   };
 
   if(editandoId){
@@ -1160,7 +1165,7 @@ document.getElementById('mSalvar').addEventListener('click', async () => {
   }
 
   modalBg.classList.remove('open');
-  ['mColab','mContrato','mMotivo','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
+  ['mColab','mContrato','mMotivo','mAusente','mHorario','mValor'].forEach(id => document.getElementById(id).value = '');
 });
 
 modalBg.addEventListener('click', e => {
